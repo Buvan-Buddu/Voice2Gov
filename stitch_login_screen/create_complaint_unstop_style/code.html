@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Voice2Gov - Submit Complaint</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#1C4980", // Unstop primary blue
+              "primary-container": "#d7e3ff",
+              "on-primary": "#ffffff",
+              "surface": "#F8F9FA",
+              "on-surface": "#1C1C1C",
+              "outline": "#E5E7EB", // Light gray borders
+              "surface-container": "#ffffff",
+              "on-surface-variant": "#5F6368"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {
+              "DEFAULT": "8px",
+              "lg": "12px",
+              "xl": "16px",
+              "full": "9999px"
+            },
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      body {
+        min-height: 100dvh;
+        background-color: #F8F9FA;
+      }
+      .card-shadow {
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      }
+    </style>
+</head>
+<body class="font-body text-on-surface antialiased pb-32">
+<!-- Top App Bar (Based on COMPONENTS_11) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 h-16 bg-white border-b border-gray-200">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#003263]">gavel</span>
+<h1 class="text-xl font-black text-[#003263] tracking-tight font-['Inter']">Voice2Gov</h1>
+</div>
+<div class="w-10 h-10 rounded-full overflow-hidden border border-gray-200 hover:bg-slate-50 transition-colors cursor-pointer active:opacity-80 active:scale-[0.98]">
+<img alt="User Profile Avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD06LFgsQuS_Ikz-i1hkibLetiKaSQrWxXzA3-ayehSH7v8cN6iXPVeB4Q4xVYfD-zY-WcsqlGSEMpRVF3KwaJ2cG5qS61R6GrVrng0oLEf4qyMkVR1xXB3PkEty9ey6wzj8lt2Udw6Ck1OFicYmTtowYvHwVAQvP1YA6PVRyNHlS4g9gr7NTUQ4eiduAmFAq-coqd-e2VCwPRfUyzREGyNwiCVB7_hthzL2WQjtYnB-hkSZPcwkXnvfpYThbE3AmAjse_9J6AZs18"/>
+</div>
+</header>
+<main class="pt-24 px-4 max-w-2xl mx-auto space-y-6">
+<!-- Page Header -->
+<div class="mb-4">
+<h2 class="text-2xl font-bold text-[#1C4980] mb-1">Submit a Complaint</h2>
+<p class="text-on-surface-variant text-sm">Fill in the details below to report an issue.</p>
+</div>
+<form class="space-y-6">
+<!-- Category Section (Segmented Card) -->
+<section class="bg-white border border-outline rounded-lg card-shadow">
+<div class="px-5 py-3 border-b border-outline">
+<label class="text-xs font-bold text-primary tracking-wide uppercase">Category</label>
+</div>
+<div class="p-5 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary/60">engineering</span>
+<span class="font-medium text-on-surface">Infrastructure &amp; Potholes</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant/40 text-sm">lock</span>
+</div>
+</section>
+<!-- Description Section (Segmented Card) -->
+<section class="bg-white border border-outline rounded-lg card-shadow">
+<div class="px-5 py-3 border-b border-outline">
+<label class="text-xs font-bold text-primary tracking-wide uppercase">Description</label>
+</div>
+<div class="p-5 relative">
+<textarea class="w-full border-none p-0 text-on-surface placeholder:text-gray-400 focus:ring-0 resize-none min-h-[120px]" placeholder="Explain the issue in detail..."></textarea>
+<button class="absolute bottom-5 right-5 w-10 h-10 bg-primary text-on-primary rounded-full flex items-center justify-center hover:opacity-90 active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">mic</span>
+</button>
+</div>
+</section>
+<!-- Media Upload Section (Segmented Card) -->
+<section class="bg-white border border-outline rounded-lg card-shadow">
+<div class="px-5 py-3 border-b border-outline">
+<label class="text-xs font-bold text-primary tracking-wide uppercase">Attachments</label>
+</div>
+<div class="p-5">
+<button class="w-full bg-[#F3F7FA] border-2 border-dashed border-[#D1DAE6] rounded-lg py-10 flex flex-col items-center justify-center gap-3 group transition-all hover:bg-white active:scale-[0.99]" type="button">
+<div class="w-12 h-12 rounded-full bg-white flex items-center justify-center text-primary shadow-sm">
+<span class="material-symbols-outlined">cloud_upload</span>
+</div>
+<div class="text-center">
+<span class="block font-bold text-primary">Upload Photo/Video</span>
+<span class="text-xs text-on-surface-variant">Maximum file size: 10MB</span>
+</div>
+</button>
+</div>
+</section>
+<!-- Location Picker (Premium Interactive Card) -->
+<section class="bg-white border border-outline rounded-lg card-shadow overflow-hidden">
+<div class="px-5 py-3 border-b border-outline flex justify-between items-center">
+<label class="text-xs font-bold text-primary tracking-wide uppercase">Incident Location</label>
+<button class="text-xs font-bold text-primary uppercase hover:underline" type="button">Update</button>
+</div>
+<div class="relative h-44 bg-gray-100">
+<img alt="Urban Map View" class="w-full h-full object-cover grayscale-[0.2] contrast-[1.1]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBd6dMb64HPJuIYIHuRfvWm5Ig9UMprIuMnBQovMskWaZw71fEtsNI1V_j2wRK28t5x8g_EyY393jZysqF1PSNhNlrE4P29s4Id871AFdjzLxc86AvIYv6jQXwCX8dHPWZ3Jxz4aKwQP-WWxV3de64ZpEMTddLVgQ_7yvBh7jzmuL0NIruMEaXdPYkGOf7M2W1fuQ-9xVX7Ue2ZrkWjLfJ0iHo7xzMjLxeo0IKuB1f-vsxAnbMbOk8MAxaHlwEZMVjsaWPyVhV6nos"/>
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+<div class="relative">
+<div class="absolute -top-1 left-1/2 -translate-x-1/2 w-8 h-8 bg-primary/20 rounded-full animate-ping"></div>
+<span class="material-symbols-outlined text-primary text-4xl relative z-10" style="font-variation-settings: 'FILL' 1;">location_on</span>
+</div>
+</div>
+<div class="absolute bottom-3 right-3">
+<button class="bg-white p-2 rounded-full shadow-md text-primary" type="button">
+<span class="material-symbols-outlined text-lg">my_location</span>
+</button>
+</div>
+</div>
+<div class="p-4 bg-white flex items-center gap-3">
+<div class="w-10 h-10 bg-primary/5 rounded-lg flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-xl">map</span>
+</div>
+<div>
+<span class="block text-sm font-bold text-on-surface leading-tight">123 Citizen Way</span>
+<span class="text-xs text-on-surface-variant">Metro Central, CA 90210</span>
+</div>
+</div>
+</section>
+<!-- Submit Button -->
+<div class="py-4">
+<button class="w-full bg-[#1C4980] text-on-primary py-4 rounded-lg font-bold text-base shadow-sm hover:bg-[#153a66] active:scale-[0.98] transition-all flex items-center justify-center gap-2" type="submit">
+                Post Complaint
+                <span class="material-symbols-outlined text-lg">arrow_forward</span>
+</button>
+</div>
+</form>
+</main>
+<!-- Bottom Navigation (Based on COMPONENTS_11) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center bg-white border-t border-gray-200 px-2 pb-safe h-16 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+<a class="flex flex-col items-center justify-center text-[#434750] hover:text-[#003263] transition-colors active:scale-95" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-['Inter'] text-[11px] font-medium mt-0.5">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#434750] hover:text-[#003263] transition-colors active:scale-95" href="#">
+<span class="material-symbols-outlined">rss_feed</span>
+<span class="font-['Inter'] text-[11px] font-medium mt-0.5">Feed</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#005ab6] font-bold active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">Assignment</span>
+<span class="font-['Inter'] text-[11px] font-medium mt-0.5">Complaints</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#434750] hover:text-[#003263] transition-colors active:scale-95" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="font-['Inter'] text-[11px] font-medium mt-0.5">Alerts</span>
+</a>
+</nav>
+</body></html>
