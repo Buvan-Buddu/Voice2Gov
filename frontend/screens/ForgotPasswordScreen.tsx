@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import React, { useState } from "react";
+import { useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -12,7 +12,12 @@ import {
     View,
 } from "react-native";
 
-import { BorderRadius, Colors, Spacing, Typography } from "../constants/theme";
+import {
+    BorderRadius,
+    Colors,
+    Spacing,
+    Typography,
+} from "../constants/theme";
 
 export default function ForgotPasswordScreen() {
   const navigation = useNavigation<any>();
