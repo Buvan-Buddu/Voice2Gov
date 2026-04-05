@@ -14,6 +14,7 @@ export type ComplaintRequest = {
 
 export type ComplaintResponse = ComplaintRequest & {
   id: string;
+  adminNotes?: string;
 };
 
 export type ComplaintFeedResponse = ComplaintResponse & {

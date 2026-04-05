@@ -1,9 +1,10 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     FlatList,
-    ScrollView,
+    RefreshControl,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -11,157 +12,136 @@ import {
 } from "react-native";
 
 import { BorderRadius, Colors, Spacing, Typography } from "../constants/theme";
-import { NotificationResponse } from "../types/srs";
-
-interface Notification extends NotificationResponse {
-  type: "update" | "alert" | "success" | "info";
-  icon: string;
-}
-
-const NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    description: "Your pavement report has been successfully resolved.",
-    image: "",
-    location: { lat: 28.6139, lng: 77.209 },
-    category: "infrastructure",
-    department: "public_works",
-    status: "resolved",
-    createdAt: "2 hours ago",
-    type: "success",
-    icon: "check-circle",
-    read: false,
-  },
-  {
-    id: "2",
-    description:
-      "Work on Street Light #8821 has begun. Estimated completion: 3 days.",
-    image: "",
-    location: { lat: 28.6149, lng: 77.213 },
-    category: "electricity",
-    department: "electricity_board",
-    status: "in_progress",
-    createdAt: "5 hours ago",
-    type: "update",
-    icon: "information",
-    read: false,
-  },
-  {
-    id: "3",
-    description:
-      "Provide additional details for your waste collection complaint #8819.",
-    image: "",
-    location: { lat: 28.6183, lng: 77.2111 },
-    category: "sanitation",
-    department: "municipal_sanitation",
-    status: "pending",
-    createdAt: "1 day ago",
-    type: "alert",
-    icon: "alert-circle",
-    read: true,
-  },
-  {
-    id: "4",
-    description:
-      "You have earned a Civic Champion badge for 10 resolved issues.",
-    image: "",
-    location: { lat: 28.6152, lng: 77.2144 },
-    category: "community",
-    department: "citizen_services",
-    status: "resolved",
-    createdAt: "2 days ago",
-    type: "info",
-    icon: "star",
-    read: true,
-  },
-];
+import { notificationService, complaintService } from "../services/api";
 
 export default function NotificationsScreen() {
   const navigation = useNavigation<any>();
-  const [notifications, setNotifications] = useState(NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const getNotificationColor = (type: string) => {
-    switch (type) {
-      case "success":
-        return Colors.success;
-      case "alert":
-        return Colors.error;
-      case "update":
-        return Colors.secondary;
-      case "info":
-        return Colors.primary;
-      default:
-        return Colors.textSecondary;
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const loadNotifications = async () => {
+    try {
+      setLoading(true);
+      const data = await notificationService.getNotifications();
+      setNotifications(data);
+    } catch (error) {
+      console.error("Notifications Load Error:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleMarkAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
-    );
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadNotifications();
+    setRefreshing(false);
+  };
+
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await notificationService.markRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      );
+    } catch (error) {
+      console.warn("Failed to mark as read", error);
+    }
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const getNotificationColor = (type: string) => {
+    switch (type) {
+      case "STATUS_CHANGE":
+        return Colors.success;
+      case "NEW_COMPLAINT":
+        return Colors.primary;
+      case "TRENDING_COMPLAINT":
+        return Colors.error;
+      default:
+        return Colors.secondary;
+    }
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+        case "STATUS_CHANGE":
+          return "check-circle";
+        case "NEW_COMPLAINT":
+          return "clipboard-plus";
+        case "TRENDING_COMPLAINT":
+          return "alert-decagram";
+        default:
+          return "bell-outline";
+      }
+  };
 
   return (
     <View style={styles.wrapper}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        {unreadCount > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{unreadCount}</Text>
-          </View>
-        )}
+        <View style={styles.headerTitleRow}>
+            <Text style={styles.headerTitle}>Inbox</Text>
+            {unreadCount > 0 && (
+                <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{unreadCount}</Text>
+                </View>
+            )}
+        </View>
+        <TouchableOpacity onPress={onRefresh}>
+            <MaterialCommunityIcons name="refresh" size={24} color={Colors.primary} />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {notifications.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons
-              name="bell-outline"
-              size={64}
-              color={Colors.textTertiary}
-            />
-            <Text style={styles.emptyTitle}>No notifications yet</Text>
-            <Text style={styles.emptySubtext}>
-              Your notifications will appear here
-            </Text>
+      {loading && !refreshing ? (
+          <View style={styles.loader}>
+              <ActivityIndicator size="large" color={Colors.primary} />
           </View>
-        ) : (
-          <FlatList
-            scrollEnabled={false}
-            data={notifications}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <NotificationCard
-                notification={item}
-                color={getNotificationColor(item.type)}
-                onPress={() => {
-                  handleMarkAsRead(item.id);
-                  navigation.navigate("ComplaintDetailsScreen", {
-                    complaint: {
-                      id: item.id,
-                      description: item.description,
-                      image: item.image,
-                      location: item.location,
-                      category: item.category,
-                      department: item.department,
-                      status: item.status,
-                    },
-                  });
-                }}
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          renderItem={({ item }) => (
+            <NotificationCard
+              notification={item}
+              color={getNotificationColor(item.type)}
+              iconName={getNotificationIcon(item.type)}
+              onPress={async () => {
+                handleMarkAsRead(item.id);
+                try {
+                    const complaintId = item.data?.complaint_id;
+                    if (complaintId) {
+                        const complaint = await complaintService.getComplaint(complaintId);
+                        navigation.navigate("ComplaintDetailsScreen", { complaint });
+                    }
+                } catch (err) {
+                    console.warn("Could not load complaint details", err);
+                }
+              }}
+            />
+          )}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons
+                name="bell-off-outline"
+                size={80}
+                color={Colors.gray200}
               />
-            )}
-            ItemSeparatorComponent={() => (
-              <View style={{ height: Spacing.xs }} />
-            )}
-          />
-        )}
-      </ScrollView>
+              <Text style={styles.emptyTitle}>All caught up!</Text>
+              <Text style={styles.emptySubtext}>
+                No new alerts or status updates at this moment.
+              </Text>
+            </View>
+          )}
+        />
+      )}
     </View>
   );
 }
@@ -169,23 +149,26 @@ export default function NotificationsScreen() {
 function NotificationCard({
   notification,
   color,
+  iconName,
   onPress,
 }: {
-  notification: Notification;
+  notification: any;
   color: string;
+  iconName: any;
   onPress: () => void;
 }) {
+  const isRead = notification.read;
   return (
     <TouchableOpacity
       style={[
         styles.card,
-        { backgroundColor: notification.read ? Colors.surface : color + "10" },
+        !isRead && { backgroundColor: color + "08", borderColor: color + "20" },
       ]}
       onPress={onPress}
     >
-      <View style={[styles.iconContainer, { backgroundColor: color + "20" }]}>
+      <View style={[styles.iconContainer, { backgroundColor: color + "15" }]}>
         <MaterialCommunityIcons
-          name={notification.icon}
+          name={iconName}
           size={24}
           color={color}
         />
@@ -193,17 +176,17 @@ function NotificationCard({
       <View style={styles.content}>
         <View style={styles.titleRow}>
           <Text style={styles.title} numberOfLines={1}>
-            {notification.category} • {notification.department}
+            {(notification.type || 'NOTIFICATION').replace('_', ' ')}
           </Text>
-          {!notification.read && (
+          {!isRead && (
             <View style={[styles.unreadDot, { backgroundColor: color }]} />
           )}
         </View>
         <Text style={styles.message} numberOfLines={2}>
-          {notification.description}
+          {notification.message}
         </Text>
         <Text style={styles.timestamp}>
-          {notification.status.replace("_", " ")} • {notification.createdAt}
+          {new Date(notification.createdAt).toLocaleDateString()}
         </Text>
       </View>
     </TouchableOpacity>
@@ -213,59 +196,68 @@ function NotificationCard({
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
-    backgroundColor: Colors.surface,
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: '#F1F5F9',
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   headerTitle: {
-    fontSize: Typography.fontSize.xl,
-    fontWeight: "800",
-    color: Colors.text,
+    fontSize: 24,
+    fontWeight: "900",
+    color: Colors.darkBlue,
   },
   badge: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
     backgroundColor: Colors.error,
     justifyContent: "center",
     alignItems: "center",
   },
   badgeText: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: "700",
+    fontSize: 10,
+    fontWeight: "900",
     color: Colors.white,
   },
-
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
+  loader: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
   },
-
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
   card: {
     flexDirection: "row",
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: Spacing.xs,
+    borderColor: '#F1F5F9',
+    marginBottom: 12,
+    elevation: 2,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.lg,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: Spacing.md,
-    flexShrink: 0,
+    marginRight: 16,
   },
   content: {
     flex: 1,
@@ -275,47 +267,48 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
   },
   title: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: "700",
-    color: Colors.text,
-    flex: 1,
-    marginRight: Spacing.sm,
+    fontSize: 12,
+    fontWeight: "800",
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   unreadDot: {
     width: 8,
     height: 8,
-    borderRadius: BorderRadius.full,
-    flexShrink: 0,
+    borderRadius: 4,
   },
   message: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
-    lineHeight: 18,
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 6,
+    lineHeight: 20,
   },
   timestamp: {
-    fontSize: Typography.fontSize.xs,
+    fontSize: 10,
+    fontWeight: '700',
     color: Colors.textTertiary,
   },
-
   emptyState: {
-    flex: 1,
-    justifyContent: "center",
     alignItems: "center",
-    paddingVertical: Spacing["3xl"],
+    marginTop: 80,
+    paddingHorizontal: 40,
   },
   emptyTitle: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: "600",
-    color: Colors.text,
-    marginTop: Spacing.lg,
+    fontSize: 18,
+    fontWeight: "800",
+    color: Colors.darkBlue,
+    marginTop: 20,
   },
   emptySubtext: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: 13,
     color: Colors.textSecondary,
-    marginTop: Spacing.sm,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 20,
   },
 });

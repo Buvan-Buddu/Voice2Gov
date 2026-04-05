@@ -52,7 +52,7 @@ class ComplaintRepository:
         """Authority: fetch complaints assigned to a specific department."""
         cursor = (
             get_complaints_collection()
-            .find({"department": department, "status": {"$ne": "resolved"}})
+            .find({"department": department})
             .sort("priority", -1)
             .skip(skip)
             .limit(limit)

@@ -29,6 +29,7 @@ DEPARTMENT_MAP: dict[str, str] = {
     "water":       "Water Department",
     "road":        "Highways Department",
     "garbage":     "Municipality",
+    "sanitation":  "Sanitation Department",
     "other":       "General Administration",
 }
 
@@ -55,6 +56,10 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "garbage", "trash", "waste", "dumping", "litter", "bin",
         "sanitation", "stench", "smell", "mosquito", "hygiene",
         "garbage dump", "waste management",
+    ],
+    "sanitation": [
+        "sanitation", "toilet", "public toilet", "drainage", "sewage",
+        "cleanliness", "hygiene", "stink", "smell", "waste",
     ],
 }
 
@@ -358,40 +363,45 @@ async def classify_and_route(
     similar_count: int = 0,
 ) -> dict:
     """
-    Main AI pipeline entry point.
-
-    :param description:    Complaint text (may include transcribed speech).
-    :param image_b64:      Optional base64 image.
-    :param votes:          Current vote count (for priority recalculation).
-    :param similar_count:  Count of similar open complaints.
-    :returns: {
-        category, department, priority,
-        confidence, is_urgent, urgency_keywords,
-        image_valid, image_message
-    }
+    Main AI pipeline entry point – wrapped in safety guards to prevent 500 errors.
     """
-    # 1. Classify category with confidence
-    category, confidence = text_classifier.classify(description)
+    try:
+        # 1. Classify category with confidence
+        category, confidence = text_classifier.classify(description)
 
-    # 2. Map to department
-    department = DEPARTMENT_MAP.get(category, "General Administration")
+        # 2. Map to department
+        department = DEPARTMENT_MAP.get(category, "General Administration")
 
-    # 3. Validate image
-    image_valid, image_message = image_processor.validate_and_process(image_b64 or "")
+        # 3. Validate image
+        image_valid, image_message = image_processor.validate_and_process(image_b64 or "")
 
-    # 4. Detect urgency
-    is_urgent, urgency_keywords = urgency_detector.detect(description)
+        # 4. Detect urgency
+        is_urgent, urgency_keywords = urgency_detector.detect(description)
 
-    # 5. Calculate priority (urgency-aware)
-    priority = priority_engine.calculate(description, votes=votes, similar_count=similar_count)
+        # 5. Calculate priority (urgency-aware)
+        priority = priority_engine.calculate(description, votes=votes, similar_count=similar_count)
 
-    return {
-        "category":         category,
-        "department":       department,
-        "priority":         priority,
-        "confidence":       confidence,
-        "is_urgent":        is_urgent,
-        "urgency_keywords": urgency_keywords,
-        "image_valid":      image_valid,
-        "image_message":    image_message,
-    }
+        return {
+            "category":         category,
+            "department":       department,
+            "priority":         priority,
+            "confidence":       confidence,
+            "is_urgent":        is_urgent,
+            "urgency_keywords": urgency_keywords,
+            "image_valid":      image_valid,
+            "image_message":    image_message,
+        }
+    except Exception as exc:
+        logger.error("🚨 AI Pipeline hard failure: %s", exc)
+        # Fallback to defaults instead of crashing the whole request
+        return {
+            "category":         "other",
+            "department":       "General Administration",
+            "priority":         "low",
+            "confidence":       0.0,
+            "is_urgent":        False,
+            "urgency_keywords": [],
+            "image_valid":      True,
+            "image_message":    "AI Analysis failed, using defaults",
+        }
+

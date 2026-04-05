@@ -22,58 +22,49 @@ interface Complaint extends ComplaintResponse {
   issueId: string;
 }
 
-const COMPLAINTS: Complaint[] = [
-  {
-    id: "1",
-    title: "Damaged Pavement Main St.",
-    status: "resolved",
-    priority: "High Priority",
-    issueId: "#8824",
-    description: "Large cracks and uneven pavement causing traffic hazards.",
-    image: "",
-    location: { lat: 28.6139, lng: 77.209 },
-    category: "Infrastructure",
-    department: "Public Works",
-  },
-  {
-    id: "2",
-    title: "Street Light Malfunctioning",
-    status: "pending",
-    priority: "Medium",
-    issueId: "#8821",
-    description: "Street light remains off every night near Block C.",
-    image: "",
-    location: { lat: 28.6149, lng: 77.213 },
-    category: "Electricity",
-    department: "Utility Board",
-  },
-  {
-    id: "3",
-    title: "Waste Collection Overdue",
-    status: "in_progress",
-    priority: "Urgent",
-    issueId: "#8819",
-    description: "Waste bins have not been cleared for 4 days.",
-    image: "",
-    location: { lat: 28.6183, lng: 77.2111 },
-    category: "Sanitation",
-    department: "Municipal",
-  },
-];
-
 type FilterType = "all" | "pending" | "resolved" | "in_progress";
+
+import { complaintService } from "../services/api";
 
 export default function MyComplaintsScreen() {
   const navigation = useNavigation<any>();
   const [filter, setFilter] = useState<FilterType>("all");
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const filteredComplaints = COMPLAINTS.filter(
+  React.useEffect(() => {
+    fetchComplaints();
+  }, []);
+
+  const fetchComplaints = async () => {
+    try {
+      setIsLoading(true);
+      const data = await complaintService.getUserComplaints();
+      // Ensure each item has the correct structure for the UI
+      const formatted = data.map((item: any) => ({
+        ...item,
+        id: item.id || item._id,
+        issueId: item.issueId || `#${String(item.id || item._id).slice(-4).toUpperCase()}`,
+        priority: item.priority || "Medium",
+        status: item.status || "pending"
+      }));
+      setComplaints(formatted);
+    } catch (error) {
+      console.error("Fetch Complaints Error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  const filteredComplaints = complaints.filter(
     (c) => filter === "all" || c.status === filter,
   );
 
   const handleComplaintPress = (complaint: Complaint) => {
     navigation.navigate("ComplaintDetailsScreen", { complaint });
   };
+
 
   return (
     <View style={styles.wrapper}>
@@ -196,7 +187,7 @@ function ComplaintCard({
       case "pending":
         return Colors.warning;
       case "in_progress":
-        return Colors.secondary;
+        return Colors.info;
       default:
         return Colors.textSecondary;
     }
@@ -439,7 +430,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTopWidth: 1,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: Colors.border,

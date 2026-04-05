@@ -25,6 +25,7 @@ class UserModel(BaseModel):
     is_active: bool = True
     phone: Optional[str] = None
     address: Optional[str] = None
+    department: Optional[str] = "General Administration"
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -45,6 +46,7 @@ def user_helper(user: dict) -> dict:
         "email":     user.get("email", ""),
         "role":      user.get("role", UserRole.CITIZEN),
         "is_active": user.get("is_active", True),
+        "department": user.get("department", "General Administration"),
         "phone":     user.get("phone"),
         "address":   user.get("address"),
         "createdAt": user.get("createdAt"),

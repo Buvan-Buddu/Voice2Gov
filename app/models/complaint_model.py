@@ -21,6 +21,7 @@ class ComplaintCategory(str, Enum):
     WATER       = "water"
     ROAD        = "road"
     GARBAGE     = "garbage"
+    SANITATION  = "sanitation"
     OTHER       = "other"
 
 
@@ -48,7 +49,7 @@ class ComplaintModel(BaseModel):
     location: Optional[LocationModel] = None
     clusterId: Optional[str]    = None                 # geo cluster bucket id
     category: ComplaintCategory = ComplaintCategory.OTHER
-    department: str             = "General"
+    department: str             = "General Administration"
     status: ComplaintStatus     = ComplaintStatus.PENDING
     priority: ComplaintPriority = ComplaintPriority.LOW
     confidence: float           = 0.0                  # AI classification confidence
@@ -80,7 +81,7 @@ def complaint_helper(complaint: dict) -> dict:
         "location":         location,
         "clusterId":        complaint.get("clusterId"),
         "category":         complaint.get("category", "other"),
-        "department":       complaint.get("department", "General"),
+        "department":       complaint.get("department", "General Administration"),
         "status":           complaint.get("status", "pending"),
         "priority":         complaint.get("priority", "low"),
         "confidence":       complaint.get("confidence", 0.0),

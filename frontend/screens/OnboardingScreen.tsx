@@ -65,7 +65,7 @@ export default function OnboardingScreen() {
         <View style={styles.logoSection}>
           <View style={styles.logoContainer}>
             <MaterialCommunityIcons
-              name="sound-wave"
+              name="microphone"
               size={24}
               color={Colors.white}
             />
@@ -96,7 +96,7 @@ export default function OnboardingScreen() {
             </View>
             <Text style={styles.heroTitle}>
               Empowering Your Voice for{" "}
-              <Text style={{ color: Colors.secondary }}>Real Change</Text>
+              <Text style={{ color: Colors.info }}>Real Change</Text>
             </Text>
             <Text style={styles.heroDescription}>
               Be part of a collective movement that turns local concerns into
@@ -211,7 +211,7 @@ function StatCard({
   return (
     <View style={styles.statCard}>
       <View style={[styles.statIcon, { backgroundColor: bgColor + "20" }]}>
-        <MaterialCommunityIcons name={icon} size={24} color={bgColor} />
+        <MaterialCommunityIcons name={icon as any} size={24} color={bgColor} />
       </View>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
@@ -226,7 +226,7 @@ function ImpactCard({ story }: { story: Impact }) {
         style={[styles.cardIcon, { backgroundColor: Colors.primary + "20" }]}
       >
         <MaterialCommunityIcons
-          name={story.icon}
+          name={story.icon as any}
           size={28}
           color={Colors.primary}
         />
@@ -236,7 +236,7 @@ function ImpactCard({ story }: { story: Impact }) {
           <MaterialCommunityIcons
             name="check-circle"
             size={12}
-            color={Colors.secondary}
+            color={Colors.info}
           />
           <Text style={styles.verifiedText}>VERIFIED</Text>
         </View>
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: Typography.fontSize.xs,
     fontWeight: "600",
-    color: Colors.secondary,
+    color: Colors.info,
   },
   heroTitle: {
     fontSize: Typography.fontSize["3xl"],
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
   verifiedText: {
     fontSize: Typography.fontSize.xs,
     fontWeight: "700",
-    color: Colors.secondary,
+    color: Colors.info,
     letterSpacing: 0.5,
   },
   cardTitle: {
@@ -484,7 +484,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTopWidth: 1,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
@@ -492,7 +491,7 @@ const styles = StyleSheet.create({
   timeAgo: {
     fontSize: Typography.fontSize.xs,
     fontWeight: "600",
-    color: Colors.secondary,
+    color: Colors.info,
   },
   readMore: {
     flexDirection: "row",
@@ -502,7 +501,7 @@ const styles = StyleSheet.create({
   readMoreText: {
     fontSize: Typography.fontSize.xs,
     fontWeight: "700",
-    color: Colors.secondary,
+    color: Colors.info,
   },
 
   // Mission Section
@@ -517,7 +516,7 @@ const styles = StyleSheet.create({
   missionBadge: {
     fontSize: Typography.fontSize.xs,
     fontWeight: "700",
-    color: Colors.secondary,
+    color: Colors.info,
     letterSpacing: 1,
     textAlign: "center",
     marginBottom: Spacing.lg,
@@ -547,7 +546,7 @@ const styles = StyleSheet.create({
   processStepText: {
     fontSize: Typography.fontSize.base,
     fontWeight: "700",
-    color: Colors.secondary,
+    color: Colors.info,
     marginBottom: Spacing.sm,
   },
   processDescription: {
