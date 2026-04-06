@@ -15,6 +15,8 @@ import {
 
 import { BorderRadius, Colors, Spacing, Typography } from "../constants/theme";
 
+import { authService } from "../services/api";
+
 export default function LoginScreen() {
   const navigation = useNavigation<any>();
   const [email, setEmail] = useState("");
@@ -30,13 +32,22 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      // Simulate login delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      Alert.alert("Success", "Logged in successfully!");
-      navigation.navigate("DashboardScreen");
-    } catch {
-      // Handle error silently
-      Alert.alert("Login Error", "Failed to login. Please try again");
+      // Real login using backend API
+      const result = await authService.login({ email, password });
+      
+      console.log("Login Success:", result.user.name);
+      
+      Alert.alert("Success", `Welcome back, ${result.user.name}!`);
+      
+      // Navigate correctly based on role
+      if (result.user.role === 'authority' || result.user.role === 'admin') {
+        navigation.navigate("AuthorityDashboardScreen");
+      } else {
+        navigation.navigate("DashboardScreen");
+      }
+    } catch (error: any) {
+      console.error("Login Error:", error.message);
+      Alert.alert("Login Error", error.message || "Failed to login. Please check credentials.");
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import React, { useState } from "react";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import React, { useState, useCallback } from "react";
 import {
     FlatList,
     ScrollView,
@@ -8,77 +8,89 @@ import {
     Text,
     TouchableOpacity,
     View,
+    ActivityIndicator,
+    Modal,
+    TextInput,
+    Alert,
+    Image,
 } from "react-native";
 
 import { BorderRadius, Colors, Spacing, Typography } from "../constants/theme";
-import { ComplaintFeedResponse } from "../types/srs";
-
-interface FeedItem extends ComplaintFeedResponse {
-  verified: boolean;
-}
-
-const FEED_ITEMS: FeedItem[] = [
-  {
-    id: "1",
-    title: "Downtown Bridge Refurbishment Success",
-    description:
-      "After 200+ votes, the downtown bridge has been successfully refurbished improving safety and community access.",
-    image: "",
-    location: { lat: 28.6139, lng: 77.209 },
-    category: "infrastructure",
-    department: "public_works",
-    status: "resolved",
-    createdAt: "2 days ago",
-    impact: "1,200+ affected residents",
-    votes: 342,
-    comments: 28,
-    verified: true,
-  },
-  {
-    id: "2",
-    title: "New Community Garden Established",
-    description:
-      "Thanks to persistent community feedback, a new community garden has been established in the park.",
-    image: "",
-    location: { lat: 28.6183, lng: 77.2111 },
-    category: "community",
-    department: "citizen_services",
-    status: "resolved",
-    createdAt: "4 days ago",
-    impact: "450+ households benefit",
-    votes: 256,
-    comments: 15,
-    verified: true,
-  },
-  {
-    id: "3",
-    title: "Street Lighting Initiative Launched",
-    description:
-      "City council approved our proposal for improved street lighting in residential areas for enhanced safety.",
-    image: "",
-    location: { lat: 28.6149, lng: 77.213 },
-    category: "safety",
-    department: "electricity_board",
-    status: "in_progress",
-    createdAt: "1 week ago",
-    impact: "3,500+ residents safer",
-    votes: 189,
-    comments: 8,
-    verified: true,
-  },
-];
+import { ComplaintFeedResponse, Comment } from "../types/srs";
+import { complaintService, API_BASE_URL } from "../services/api";
 
 export default function PublicFeedScreen() {
   const navigation = useNavigation<any>();
-  const [feedItems] = useState(FEED_ITEMS);
-  const [likedItems, setLikedItems] = useState<Record<string, boolean>>({});
+  const [feedItems, setFeedItems] = useState<ComplaintFeedResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Comment Modal state
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [activeComplaintId, setActiveComplaintId] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
 
-  const handleLike = (id: string) => {
-    setLikedItems((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+  const fetchFeed = async (isRefreshing = false) => {
+    if (isRefreshing) setRefreshing(true);
+    else setLoading(true);
+    
+    try {
+      const data = await complaintService.getFeed();
+      setFeedItems(data);
+    } catch (error: any) {
+      console.error("[Feed] Fetch error:", error.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchFeed();
+    }, [])
+  );
+
+  const handleLike = async (id: string) => {
+    try {
+      await complaintService.voteComplaint(id);
+      // Optimistic update or just re-fetch
+      fetchFeed();
+    } catch (error: any) {
+      Alert.alert("Vote Failed", error.message);
+    }
+  };
+
+  const openCommentModal = (id: string) => {
+    setActiveComplaintId(id);
+    setShowCommentModal(true);
+  };
+
+  const handleAddComment = async () => {
+    if (!activeComplaintId || !commentText.trim()) return;
+    
+    setSubmittingComment(true);
+    try {
+      await complaintService.addComment(activeComplaintId, commentText);
+      setCommentText("");
+      setShowCommentModal(false);
+      setActiveComplaintId(null);
+      fetchFeed();
+    } catch (error: any) {
+      Alert.alert("Comment Failed", error.message);
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  if (loading && !refreshing) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.wrapper}>
@@ -87,83 +99,123 @@ export default function PublicFeedScreen() {
         <Text style={styles.headerTitle}>Community Feed</Text>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Info Card */}
-        <View style={styles.infoCard}>
-          <MaterialCommunityIcons
-            name="information-outline"
-            size={20}
-            color={Colors.secondary}
-          />
-          <Text style={styles.infoText}>
-            Discover community-driven improvements that are making a real
-            difference
-          </Text>
-        </View>
-
-        {/* Feed Items */}
-        <FlatList
-          scrollEnabled={false}
-          data={feedItems}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <FeedCard
-              item={item}
-              isLiked={likedItems[item.id] || false}
-              onLike={() => handleLike(item.id)}
-              onReadMore={() =>
-                navigation.navigate("ComplaintDetailsScreen", {
-                  complaint: {
-                    id: item.id,
-                    description: item.description,
-                    image: item.image,
-                    location: item.location,
-                    category: item.category,
-                    department: item.department,
-                    status: item.status,
-                  },
-                })
-              }
+      <FlatList
+        data={feedItems}
+        keyExtractor={(item) => item.id}
+        refreshing={refreshing}
+        onRefresh={() => fetchFeed(true)}
+        ListHeaderComponent={
+          <View style={styles.infoCard}>
+            <MaterialCommunityIcons
+              name="information-outline"
+              size={20}
+              color={Colors.secondary}
             />
-          )}
-          ItemSeparatorComponent={() => <View style={{ height: Spacing.lg }} />}
-        />
-      </ScrollView>
+            <Text style={styles.infoText}>
+              Discover community-driven improvements that are making a real
+              difference
+            </Text>
+          </View>
+        }
+        contentContainerStyle={styles.scrollContent}
+        renderItem={({ item }) => (
+          <FeedCard
+            item={item}
+            onLike={() => handleLike(item.id)}
+            onComment={() => openCommentModal(item.id)}
+            onReadMore={() =>
+              navigation.navigate("ComplaintDetailsScreen", {
+                complaint: item,
+              })
+            }
+          />
+        )}
+        ItemSeparatorComponent={() => <View style={{ height: Spacing.lg }} />}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <MaterialCommunityIcons name="newspaper-variant-outline" size={60} color={Colors.textTertiary} />
+            <Text style={styles.emptyText}>No complaints in the feed yet.</Text>
+          </View>
+        }
+      />
+
+      {/* Comment Modal */}
+      <Modal
+        visible={showCommentModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCommentModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Comment</Text>
+              <TouchableOpacity onPress={() => setShowCommentModal(false)}>
+                <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Write your comment..."
+              placeholderTextColor={Colors.textTertiary}
+              multiline
+              value={commentText}
+              onChangeText={setCommentText}
+              maxLength={500}
+            />
+            
+            <TouchableOpacity 
+              style={[
+                styles.submitButton, 
+                (!commentText.trim() || submittingComment) && styles.submitButtonDisabled
+              ]} 
+              onPress={handleAddComment}
+              disabled={!commentText.trim() || submittingComment}
+            >
+              {submittingComment ? (
+                <ActivityIndicator color={Colors.surface} />
+              ) : (
+                <Text style={styles.submitButtonText}>Post Comment</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 function FeedCard({
   item,
-  isLiked,
   onLike,
+  onComment,
   onReadMore,
 }: {
-  item: FeedItem;
-  isLiked: boolean;
+  item: ComplaintFeedResponse;
   onLike: () => void;
+  onComment: () => void;
   onReadMore: () => void;
 }) {
+  const isVoted = false; // We don't have this in the response currently, would need backend to return if current user voted
+
   return (
     <View style={styles.card}>
       {/* Header */}
       <View style={styles.cardHeader}>
-        <View>
+        <View style={{ flex: 1 }}>
           <View style={styles.categoryBadge}>
             <Text style={styles.categoryText}>{item.category}</Text>
           </View>
           <Text style={styles.title} numberOfLines={2}>
-            {item.title}
+            {item.description.substring(0, 50)}{item.description.length > 50 ? "..." : ""}
           </Text>
         </View>
-        {item.verified && (
+        {item.status === "resolved" && (
           <View style={styles.verifiedBadge}>
             <MaterialCommunityIcons
               name="check-circle"
-              size={16}
+              size={20}
               color={Colors.success}
             />
           </View>
@@ -171,12 +223,30 @@ function FeedCard({
       </View>
 
       {/* Description */}
-      <Text style={styles.description}>{item.description}</Text>
+      <Text style={styles.description} numberOfLines={3}>{item.description}</Text>
 
-      {/* Impact */}
+      {/* Image Preview */}
+      {(item.image || (item as any).imageUrl) && (
+        <View style={styles.imagePreviewWrapper}>
+          <Image 
+            source={{ 
+              uri: (item.image || (item as any).imageUrl).startsWith('http') 
+                ? (item.image || (item as any).imageUrl)
+                : (item.image || (item as any).imageUrl).startsWith('data:')
+                  ? (item.image || (item as any).imageUrl)
+                  : `${API_BASE_URL}${(item.image || (item as any).imageUrl)}`
+            }} 
+            style={styles.imagePreview} 
+          />
+        </View>
+      )}
+
+      {/* Stats Bar */}
       <View style={styles.impactBar}>
-        <MaterialCommunityIcons name="heart" size={16} color={Colors.error} />
-        <Text style={styles.impactText}>{item.impact}</Text>
+        <MaterialCommunityIcons name="trending-up" size={16} color={Colors.secondary} />
+        <Text style={styles.impactText}>
+          {item.votes} votes • {item.comments?.length || 0} comments
+        </Text>
       </View>
 
       {/* Footer */}
@@ -184,46 +254,35 @@ function FeedCard({
         <View style={styles.actions}>
           <TouchableOpacity style={styles.actionButton} onPress={onLike}>
             <MaterialCommunityIcons
-              name={isLiked ? "thumb-up" : "thumb-up-outline"}
+              name={isVoted ? "thumb-up" : "thumb-up-outline"}
               size={18}
-              color={isLiked ? Colors.secondary : Colors.textSecondary}
+              color={isVoted ? Colors.secondary : Colors.textSecondary}
             />
-            <Text
-              style={[
-                styles.actionText,
-                isLiked && { color: Colors.secondary },
-              ]}
-            >
+            <Text style={[styles.actionText, isVoted && { color: Colors.secondary }]}>
               Vote
             </Text>
-            <Text
-              style={[
-                styles.actionText,
-                isLiked && { color: Colors.secondary },
-              ]}
-            >
-              {item.votes}
-            </Text>
           </TouchableOpacity>
-          <View style={styles.actionButton}>
+          
+          <TouchableOpacity style={styles.actionButton} onPress={onComment}>
             <MaterialCommunityIcons
               name="comment-outline"
               size={18}
               color={Colors.textSecondary}
             />
-            <Text style={styles.actionText}>{item.comments}</Text>
-          </View>
+            <Text style={styles.actionText}>Comment</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.actionButton} onPress={onReadMore}>
             <MaterialCommunityIcons
-              name="arrow-right-circle-outline"
+              name="eye-outline"
               size={18}
               color={Colors.textSecondary}
             />
-            <Text style={styles.actionText}>Read More</Text>
+            <Text style={styles.actionText}>Details</Text>
           </TouchableOpacity>
         </View>
         <Text style={styles.timestamp}>
-          {item.status.replace("_", " ")} • {item.createdAt}
+          {new Date(item.createdAt).toLocaleDateString()}
         </Text>
       </View>
     </View>
@@ -233,6 +292,12 @@ function FeedCard({
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
+    backgroundColor: Colors.background,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: Colors.background,
   },
   header: {
@@ -249,7 +314,6 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.lg,
   },
@@ -277,7 +341,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: Spacing.lg,
-    marginBottom: Spacing.lg,
   },
   cardHeader: {
     flexDirection: "row",
@@ -304,7 +367,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.text,
     marginBottom: Spacing.sm,
-    flex: 1,
   },
   verifiedBadge: {
     marginLeft: Spacing.md,
@@ -321,30 +383,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     backgroundColor: Colors.background,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.md,
     marginBottom: Spacing.lg,
   },
   impactText: {
-    fontSize: Typography.fontSize.sm,
+    fontSize: Typography.fontSize.xs,
     fontWeight: "600",
-    color: Colors.error,
+    color: Colors.secondary,
   },
 
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTopWidth: 1,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
   actions: {
     flexDirection: "row",
-    gap: Spacing.lg,
+    gap: Spacing.md,
   },
   actionButton: {
     flexDirection: "row",
@@ -357,7 +418,80 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   timestamp: {
-    fontSize: Typography.fontSize.xs,
+    fontSize: 11,
     color: Colors.textTertiary,
+    fontWeight: "700",
+  },
+  imagePreviewWrapper: {
+    height: 180,
+    width: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginVertical: 12,
+    backgroundColor: '#F1F5F9',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 100,
+  },
+  emptyText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.base,
+    color: Colors.textTertiary,
+    fontWeight: "600",
+  },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xl,
+  },
+  modalTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: "700",
+    color: Colors.text,
+  },
+  commentInput: {
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    fontSize: Typography.fontSize.base,
+    color: Colors.text,
+    height: 120,
+    textAlignVertical: "top",
+    marginBottom: Spacing.xl,
+  },
+  submitButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    alignItems: "center",
+  },
+  submitButtonDisabled: {
+    backgroundColor: Colors.textTertiary,
+  },
+  submitButtonText: {
+    color: Colors.surface,
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
   },
 });

@@ -13,9 +13,11 @@ from app.models.user_model import UserRole
 class UserRegisterSchema(BaseModel):
     name: str            = Field(..., min_length=2, max_length=100, examples=["Rahul Kumar"])
     email: EmailStr      = Field(..., examples=["rahul@example.com"])
-    password: str        = Field(..., min_length=8, examples=["Secret@123"])
+    password: str        = Field(..., min_length=6, examples=["Secret@123"])
     phone: Optional[str] = Field(None, examples=["+919876543210"])
     address: Optional[str] = None
+    role: UserRole = UserRole.CITIZEN
+    department: Optional[str] = "General Administration"
 
     class Config:
         json_schema_extra = {
@@ -60,6 +62,7 @@ class UserResponseSchema(BaseModel):
     is_active: bool
     phone: Optional[str] = None
     address: Optional[str] = None
+    department: str = "General Administration"
 
 
 class TokenResponseSchema(BaseModel):

@@ -247,5 +247,70 @@ class ComplaintService:
         )
         return result
 
+    # ------------------------------------------------------------------
+    # Comments
+    # ------------------------------------------------------------------
+    async def add_comment(
+        self, complaint_id: str, user_id: str, user_name: str, text: str
+    ) -> dict:
+        """Add a comment to a complaint."""
+        doc = await complaint_repo.add_comment(complaint_id, user_id, user_name, text)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Complaint not found")
+        return complaint_helper(doc)
+
+
+    async def get_city_status(self) -> list[dict]:
+        """Aggregate data to show status of city services (dynamic)."""
+        all_complaints = await complaint_repo.list_all(limit=1000)
+        complaint_list = all_complaints["complaints"]
+        
+        # map departments to icons/labels
+        services = {
+            "Water & Sanitation": {"icon": "water", "label": "Water Supply"},
+            "Electricity": {"icon": "power-plug", "label": "Electricity"},
+            "Infrastructure": {"icon": "road-variant", "label": "Roads & Transit"},
+            "Public Health": {"icon": "hospital-box", "label": "Health & Sanity"},
+            "General Administration": {"icon": "office-building", "label": "General Govt"}
+        }
+        
+        # calculate stats per dept
+        dept_stats = {}
+        for c in complaint_list:
+            dept = c.get("department", "General Administration")
+            if dept not in dept_stats:
+                dept_stats[dept] = {"pending": 0, "total": 0}
+            dept_stats[dept]["total"] += 1
+            if c.get("status") in ["pending", "in_progress"]:
+                dept_stats[dept]["pending"] += 1
+                
+        results = []
+        for dept_name, info in services.items():
+            stats = dept_stats.get(dept_name, {"pending": 0, "total": 0})
+            
+            # Dynamic calculation
+            if stats["pending"] > 10:
+                status_text = "Critical Load"
+                color_code = "#F43F5E"
+            elif stats["pending"] > 5:
+                status_text = "Warning: Delayed"
+                color_code = "#F59E0B"
+            elif stats["pending"] > 0:
+                status_text = "Active Repairs"
+                color_code = "#3B82F6"
+            else:
+                status_text = "Optimal Operation"
+                color_code = "#10B981"
+            
+            results.append({
+                "label": info["label"],
+                "icon": info["icon"],
+                "status": status_text,
+                "color": color_code,
+                "count": stats["pending"]
+            })
+            
+        return results
+
 
 complaint_service = ComplaintService()

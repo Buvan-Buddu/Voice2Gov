@@ -14,6 +14,8 @@ import {
 
 import { BorderRadius, Colors, Spacing, Typography } from "../constants/theme";
 
+import { authService } from "../services/api";
+
 export default function RegistrationScreen() {
   const navigation = useNavigation<any>();
   const [fullName, setFullName] = useState("");
@@ -24,10 +26,27 @@ export default function RegistrationScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState<"citizen" | "authority">("citizen");
+  const [department, setDepartment] = useState("General Administration");
+
+  const DEPARTMENTS = [
+    "General Administration",
+    "EB (Electricity Board)",
+    "Water Department",
+    "Highways Department",
+    "Municipality",
+    "Public Health",
+    "Traffic Police"
+  ];
 
   const handleRegister = async () => {
     if (!fullName || !email || !password || !confirmPassword) {
       Alert.alert("Validation Error", "Please fill in all fields");
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert("Error", "Password must be at least 6 characters long");
       return;
     }
 
@@ -43,15 +62,25 @@ export default function RegistrationScreen() {
 
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      Alert.alert("Success", "Account created! Verify your email to continue.");
-      navigation.navigate("OTPVerificationScreen", { email });
-    } catch {
-      Alert.alert("Error", "Failed to create account");
+      // Real registration call
+      const result = await authService.register({
+        name: fullName,
+        email,
+        password,
+        role,
+        department: role === "authority" ? department : undefined
+      });
+
+      Alert.alert("Success", "Account created! Please log in to continue.");
+      navigation.navigate("LoginScreen");
+    } catch (error: any) {
+      console.error("Registration Error:", error.message);
+      Alert.alert("Error", error.message || "Failed to create account");
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleLoginLink = () => {
     navigation.navigate("LoginScreen");
@@ -67,17 +96,70 @@ export default function RegistrationScreen() {
           {/* Branding Section */}
           <View style={styles.brandingSection}>
             <View style={styles.logoContainer}>
-              <MaterialCommunityIcons
-                name="sound-wave"
-                size={32}
-                color={Colors.white}
-              />
-            </View>
+            <MaterialCommunityIcons
+              name="microphone"
+              size={24}
+              color={Colors.white}
+            />
+          </View>
             <Text style={styles.appTitle}>Voice2Gov</Text>
             <Text style={styles.appSubtitle}>
               Digital Concierge for Civic Change
             </Text>
           </View>
+
+          {/* Role Selection */}
+          <View style={styles.roleSection}>
+            <Text style={styles.inputLabel}>Register As</Text>
+            <View style={styles.roleButtons}>
+              <TouchableOpacity
+                style={[styles.roleButton, role === "citizen" && styles.roleButtonActive]}
+                onPress={() => setRole("citizen")}
+              >
+                <MaterialCommunityIcons 
+                  name="account" 
+                  size={20} 
+                  color={role === "citizen" ? Colors.white : Colors.textSecondary} 
+                />
+                <Text style={[styles.roleButtonText, role === "citizen" && styles.roleButtonTextActive]}>Citizen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.roleButton, role === "authority" && styles.roleButtonActive]}
+                onPress={() => setRole("authority")}
+              >
+                <MaterialCommunityIcons 
+                  name="shield-account" 
+                  size={20} 
+                  color={role === "authority" ? Colors.white : Colors.textSecondary} 
+                />
+                <Text style={[styles.roleButtonText, role === "authority" && styles.roleButtonTextActive]}>Authority</Text>
+              </TouchableOpacity>
+            </View>
+            {role === "authority" && (
+              <Text style={styles.roleHelperText}>
+                Note: Authority accounts are restricted to resolving citizen-reported issues and managing department workflows.
+              </Text>
+            )}
+          </View>
+
+          {role === "authority" && (
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>Department</Text>
+              <View style={styles.deptGrid}>
+                {DEPARTMENTS.map((dept) => (
+                  <TouchableOpacity
+                    key={dept}
+                    style={[styles.deptChip, department === dept && styles.deptChipActive]}
+                    onPress={() => setDepartment(dept)}
+                  >
+                    <Text style={[styles.deptChipText, department === dept && styles.deptChipTextActive]}>
+                      {dept}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Full Name Field */}
           <View style={styles.formGroup}>
@@ -299,6 +381,75 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: Colors.textSecondary,
     textAlign: "center",
+  },
+
+  // Role Selection
+  roleSection: {
+    marginBottom: Spacing.xl,
+  },
+  roleButtons: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  roleButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.white,
+  },
+  roleButtonActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  roleButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+  },
+  roleButtonTextActive: {
+    color: Colors.white,
+  },
+  roleHelperText: {
+    fontSize: 11,
+    color: Colors.textTertiary,
+    marginTop: 12,
+    fontStyle: 'italic',
+    paddingHorizontal: 8,
+  },
+
+  // Dept Grid
+  deptGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  deptChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  deptChipActive: {
+    backgroundColor: Colors.secondary + "20",
+    borderColor: Colors.secondary,
+  },
+  deptChipText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  deptChipTextActive: {
+    color: Colors.secondary,
   },
 
   // Form Groups

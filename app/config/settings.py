@@ -2,8 +2,8 @@
 Application Settings – loaded from .env file via pydantic-settings
 """
 from functools import lru_cache
-from typing import List, Optional
-from pydantic_settings import BaseSettings
+from typing import List, Optional, Any
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 
 
@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@voice2gov.com"
     ADMIN_PASSWORD: str = "Admin@123456"
 
-    # CORS – stored as comma-separated string in .env
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    # CORS – stored as comma-separated string or JSON list in .env
+    ALLOWED_ORIGINS: Any = ["http://localhost:3000", "http://localhost:5173"]
 
     # File limits
     MAX_IMAGE_SIZE: int = 5_242_880  # 5 MB
@@ -52,13 +52,24 @@ class Settings(BaseSettings):
     @classmethod
     def parse_origins(cls, v):
         if isinstance(v, str):
-            return [o.strip() for o in v.split(",")]
+            v_stripped = v.strip()
+            # Handle JSON-like list if it starts with [
+            if v_stripped.startswith("[") and v_stripped.endswith("]"):
+                try:
+                    import json
+                    return json.loads(v_stripped)
+                except:
+                    pass
+            # Fallback to comma separation
+            return [o.strip() for o in v.split(",") if o.strip()]
         return v
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
 
 @lru_cache()

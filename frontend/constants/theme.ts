@@ -8,11 +8,15 @@ import { Platform } from "react-native";
 // Primary Brand Colors
 const VOICE2GOV_PRIMARY = "#1C4980";
 const VOICE2GOV_DARK_BLUE = "#003263";
+const VOICE2GOV_SECONDARY = "#FFD700"; // Gold accent for gamification
+const VOICE2GOV_ACCENT = "#FF6B6B";    // Coral for interaction
 
 export const Colors = {
   // Primary Brand
   primary: VOICE2GOV_PRIMARY,
   darkBlue: VOICE2GOV_DARK_BLUE,
+  secondary: VOICE2GOV_SECONDARY,
+  accent: VOICE2GOV_ACCENT,
 
   // Background & Surface
   background: "#F0F6FF",

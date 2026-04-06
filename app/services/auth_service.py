@@ -33,13 +33,14 @@ class AuthService:
 
         # 3. Build document
         user_data = {
-            "name":     payload.name,
-            "email":    payload.email.lower(),
-            "password": hashed,
-            "role":     UserRole.CITIZEN,
-            "is_active": True,
-            "phone":    payload.phone,
-            "address":  payload.address,
+            "name":       payload.name,
+            "email":      payload.email.lower(),
+            "password":   hashed,
+            "role":       payload.role.value if hasattr(payload.role, 'value') else payload.role,
+            "department": payload.department if payload.role == UserRole.AUTHORITY else None,
+            "is_active":  True,
+            "phone":      payload.phone,
+            "address":    payload.address,
         }
 
         # 4. Persist

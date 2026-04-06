@@ -105,7 +105,7 @@ app.add_middleware(AuthMiddleware)                # auth awareness logging
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=["*"],  # Allow all for development networking issues
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,753 +1,387 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import React, { useState } from "react";
+import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { BorderRadius, Colors, Spacing, Typography } from "../constants/theme";
-import { ComplaintRequest, ComplaintResponse } from "../types/srs";
-
-type PriorityLevel = "low" | "normal" | "high";
+import { complaintService } from "../services/api";
 
 export default function CreateComplaintScreen() {
   const navigation = useNavigation<any>();
+  const [description, setDescription] = useState("");
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
 
-  const [title, setTitle] = useState("");
-  const [complaintData, setComplaintData] = useState<ComplaintRequest>({
-    description: "",
-    image: "",
-    location: { lat: null, lng: null },
-    category: "infrastructure",
-    department: "public_works",
-    status: "pending",
-  });
-  const [priority, setPriority] = useState<PriorityLevel>("normal");
-  const [attachments, setAttachments] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-  const [showPriorityPicker, setShowPriorityPicker] = useState(false);
-  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
-  const [voiceNoteLabel, setVoiceNoteLabel] = useState("No voice note added");
+  useEffect(() => {
+    requestPermissions();
+  }, []);
 
-  const categories = [
-    "infrastructure",
-    "sanitation",
-    "safety",
-    "traffic",
-    "other",
-  ];
-  const departments = [
-    "public_works",
-    "municipal_sanitation",
-    "electricity_board",
-    "traffic_department",
-    "citizen_services",
-  ];
-  const priorities: PriorityLevel[] = ["low", "normal", "high"];
+  const requestPermissions = async () => {
+    const { status: camStatus } = await ImagePicker.requestCameraPermissionsAsync();
+    const { status: locStatus } = await Location.requestForegroundPermissionsAsync();
 
-  const isFormValid =
-    title.trim().length > 0 && complaintData.description.trim().length > 0;
+    if (camStatus !== "granted" || locStatus !== "granted") {
+      Alert.alert("Permission Required", "We need Camera and Location access to file reports.");
+    }
+  };
 
-  const handleSubmit = () => {
-    if (!isFormValid) {
-      Alert.alert("Validation Error", "Please fill in all required fields");
+  const handleTakePhoto = async () => {
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0].base64) {
+        setPhoto(`data:image/jpeg;base64,${result.assets[0].base64}`);
+        fetchLocation(); // Auto-fetch location
+      }
+    } catch (error) {
+      Alert.alert("Camera Error", "Could not capture image.");
+    }
+  };
+
+  const fetchLocation = async () => {
+    try {
+      setLocating(true);
+      const currentLoc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setLocation({
+        lat: currentLoc.coords.latitude,
+        lng: currentLoc.coords.longitude,
+      });
+    } catch (error) {
+      console.warn("Location fetch failed", error);
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (description.length < 10) {
+      Alert.alert("Description Too Short", "Please provide at least 10 characters to help our AI route your request correctly.");
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      const mockResponse: ComplaintResponse = {
-        id: `CMP-${Date.now()}`,
-        ...complaintData,
+    setLoading(true);
+    try {
+      const payload = {
+        description,
+        image: photo || undefined,
+        location: (location && typeof location.lat === 'number' && typeof location.lng === 'number') 
+          ? { lat: location.lat, lng: location.lng } 
+          : undefined,
       };
-      setIsLoading(false);
+
+      await complaintService.createComplaint(payload);
+      
       Alert.alert(
-        "Success",
-        `Complaint submitted with status: ${mockResponse.status}`,
-        [
-          {
-            text: "OK",
-            onPress: () => navigation.goBack(),
-          },
-        ],
+        "Report Filed", 
+        "Your voice has been heard! Our AI is routing this to the correct department.",
+        [{ text: "Great", onPress: () => navigation.navigate("DashboardScreen", { screen: "ComplaintsTab" }) }]
       );
-    }, 1500);
-  };
-
-  const handleAddAttachment = () => {
-    // Simulate adding an attachment
-    const newAttachment = `File_${attachments.length + 1}.jpg`;
-    setAttachments([...attachments, newAttachment]);
-  };
-
-  const handleRemoveAttachment = (index: number) => {
-    setAttachments(attachments.filter((_, i) => i !== index));
-  };
-
-  const handleVoiceToggle = () => {
-    if (isRecordingVoice) {
-      setIsRecordingVoice(false);
-      setVoiceNoteLabel("Voice note: 00:14 captured");
-      return;
+    } catch (error: any) {
+      Alert.alert("Submission Failed", error.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
     }
-    setIsRecordingVoice(true);
-    setVoiceNoteLabel("Recording in progress...");
   };
 
   return (
-    <View style={styles.wrapper}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons
-            name="arrow-left"
-            size={24}
-            color={Colors.text}
-          />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>New Complaint</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+    <View style={styles.container}>
+      <LinearGradient
+        colors={[Colors.darkBlue, Colors.primary]}
+        style={styles.topBar}
+        start={{x: 0, y: 0}}
+        end={{x: 1, y: 0}}
       >
-        {/* Title Field */}
-        <FormSection label="Title *">
-          <TextInput
-            style={styles.textInput}
-            placeholder="Brief title of the issue"
-            placeholderTextColor={Colors.textSecondary}
-            value={title}
-            onChangeText={setTitle}
-            maxLength={100}
-          />
-          <Text style={styles.charCount}>{title.length}/100</Text>
-        </FormSection>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <MaterialCommunityIcons name="chevron-left" size={28} color="white" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>File a Report</Text>
+        <View style={{ width: 28 }} />
+      </LinearGradient>
 
-        {/* Description Field */}
-        <FormSection label="Description *">
-          <TextInput
-            style={[styles.textInput, styles.textareaInput]}
-            placeholder="Provide details about the issue"
-            placeholderTextColor={Colors.textSecondary}
-            value={complaintData.description}
-            onChangeText={(value) =>
-              setComplaintData((prev) => ({ ...prev, description: value }))
-            }
-            multiline
-            numberOfLines={4}
-            maxLength={500}
-          />
-          <Text style={styles.charCount}>
-            {complaintData.description.length}/500
-          </Text>
-        </FormSection>
-
-        {/* Category Field */}
-        <FormSection label="Category">
-          <Pressable
-            style={styles.selectButton}
-            onPress={() => setShowCategoryPicker(!showCategoryPicker)}
-          >
-            <Text style={styles.selectButtonText}>
-              {complaintData.category}
-            </Text>
-            <MaterialCommunityIcons
-              name={showCategoryPicker ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={Colors.primary}
-            />
-          </Pressable>
-
-          {showCategoryPicker && (
-            <View style={styles.pickerOptions}>
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[
-                    styles.pickerOption,
-                    complaintData.category === cat && styles.pickerOptionActive,
-                  ]}
-                  onPress={() => {
-                    setComplaintData((prev) => ({ ...prev, category: cat }));
-                    setShowCategoryPicker(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.pickerOptionText,
-                      complaintData.category === cat &&
-                        styles.pickerOptionTextActive,
-                    ]}
-                  >
-                    {cat}
-                  </Text>
-                  {complaintData.category === cat && (
-                    <MaterialCommunityIcons
-                      name="check"
-                      size={20}
-                      color={Colors.primary}
-                    />
-                  )}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>Visual Evidence</Text>
+            {photo ? (
+              <View style={styles.photoPreviewWrapper}>
+                <Image source={{ uri: photo }} style={styles.photoPreview} />
+                <TouchableOpacity style={styles.removePhoto} onPress={() => setPhoto(null)}>
+                  <MaterialCommunityIcons name="close-circle" size={24} color={Colors.error} />
                 </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </FormSection>
-
-        {/* Location Field */}
-        <FormSection label="Location">
-          <View style={styles.locationInputWrapper}>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Lat,Lng (e.g. 28.6139,77.2090)"
-              placeholderTextColor={Colors.textSecondary}
-              value={`${complaintData.location.lat ?? ""}${complaintData.location.lat !== null ? "," : ""}${complaintData.location.lng ?? ""}`}
-              onChangeText={(value) => {
-                const [latText, lngText] = value.split(",");
-                const lat = Number(latText);
-                const lng = Number(lngText);
-                setComplaintData((prev) => ({
-                  ...prev,
-                  location: {
-                    lat: Number.isFinite(lat) ? lat : null,
-                    lng: Number.isFinite(lng) ? lng : null,
-                  },
-                }));
-              }}
-            />
-            <TouchableOpacity style={styles.locationButton}>
-              <MaterialCommunityIcons
-                name="map-marker-outline"
-                size={20}
-                color={Colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
-        </FormSection>
-
-        {/* Priority Field */}
-        <FormSection label="Priority">
-          <Pressable
-            style={styles.selectButton}
-            onPress={() => setShowPriorityPicker(!showPriorityPicker)}
-          >
-            <View style={styles.priorityDisplay}>
-              <View
-                style={[
-                  styles.priorityDot,
-                  { backgroundColor: getPriorityColor(priority) },
-                ]}
-              />
-              <Text style={styles.selectButtonText}>
-                {priority.charAt(0).toUpperCase() + priority.slice(1)}
-              </Text>
-            </View>
-            <MaterialCommunityIcons
-              name={showPriorityPicker ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={Colors.primary}
-            />
-          </Pressable>
-
-          {showPriorityPicker && (
-            <View style={styles.pickerOptions}>
-              {priorities.map((prio) => (
-                <TouchableOpacity
-                  key={prio}
-                  style={[
-                    styles.pickerOption,
-                    priority === prio && styles.pickerOptionActive,
-                  ]}
-                  onPress={() => {
-                    setPriority(prio);
-                    setShowPriorityPicker(false);
-                  }}
-                >
-                  <View style={styles.priorityOptionContent}>
-                    <View
-                      style={[
-                        styles.priorityDot,
-                        { backgroundColor: getPriorityColor(prio) },
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.pickerOptionText,
-                        priority === prio && styles.pickerOptionTextActive,
-                      ]}
-                    >
-                      {prio.charAt(0).toUpperCase() + prio.slice(1)}
-                    </Text>
-                  </View>
-                  {priority === prio && (
-                    <MaterialCommunityIcons
-                      name="check"
-                      size={20}
-                      color={Colors.primary}
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </FormSection>
-
-        {/* Attachments */}
-        <FormSection label="Attachments">
-          {attachments.length > 0 && (
-            <View style={styles.attachmentsList}>
-              {attachments.map((attachment, index) => (
-                <AttachmentItem
-                  key={index}
-                  name={attachment}
-                  onRemove={() => handleRemoveAttachment(index)}
-                />
-              ))}
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={styles.addAttachmentButton}
-            onPress={() => {
-              handleAddAttachment();
-              setComplaintData((prev) => ({
-                ...prev,
-                image: `mock://attachment-${attachments.length + 1}.jpg`,
-              }));
-            }}
-          >
-            <MaterialCommunityIcons
-              name="plus"
-              size={20}
-              color={Colors.primary}
-            />
-            <Text style={styles.addAttachmentText}>Add Photo/Document</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.helperText}>
-            {attachments.length < 3
-              ? `Add up to ${3 - attachments.length} more file(s)`
-              : "Maximum files reached"}
-          </Text>
-        </FormSection>
-
-        <FormSection label="Voice Note">
-          <View style={styles.voiceCard}>
-            <View style={styles.voiceInfo}>
-              <MaterialCommunityIcons
-                name={isRecordingVoice ? "microphone" : "microphone-outline"}
-                size={20}
-                color={isRecordingVoice ? Colors.error : Colors.primary}
-              />
-              <Text style={styles.voiceText}>{voiceNoteLabel}</Text>
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.voiceButton,
-                isRecordingVoice && styles.voiceButtonRecording,
-              ]}
-              onPress={handleVoiceToggle}
-            >
-              <MaterialCommunityIcons
-                name={isRecordingVoice ? "stop" : "record-rec"}
-                size={16}
-                color={isRecordingVoice ? Colors.error : Colors.primary}
-              />
-              <Text
-                style={[
-                  styles.voiceButtonText,
-                  isRecordingVoice && styles.voiceButtonTextRecording,
-                ]}
-              >
-                {isRecordingVoice ? "Stop" : "Record"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </FormSection>
-
-        <FormSection label="Department">
-          <View style={styles.pickerOptions}>
-            {departments.map((dept) => (
-              <TouchableOpacity
-                key={dept}
-                style={[
-                  styles.pickerOption,
-                  complaintData.department === dept &&
-                    styles.pickerOptionActive,
-                ]}
-                onPress={() =>
-                  setComplaintData((prev) => ({ ...prev, department: dept }))
-                }
-              >
-                <Text
-                  style={[
-                    styles.pickerOptionText,
-                    complaintData.department === dept &&
-                      styles.pickerOptionTextActive,
-                  ]}
-                >
-                  {dept}
-                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.captureBtn} onPress={handleTakePhoto}>
+                <View style={styles.captureIconOuter}>
+                  <MaterialCommunityIcons name="camera-plus" size={32} color={Colors.primary} />
+                </View>
+                <Text style={styles.captureText}>Take a Photo</Text>
+                <Text style={styles.captureSub}>Capture the issue for AI analysis</Text>
               </TouchableOpacity>
-            ))}
+            )}
           </View>
-        </FormSection>
 
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            !isFormValid && styles.submitButtonDisabled,
-          ]}
-          onPress={handleSubmit}
-          disabled={!isFormValid || isLoading}
-        >
-          {isLoading ? (
-            <Text style={styles.submitButtonText}>Submitting...</Text>
-          ) : (
-            <>
-              <MaterialCommunityIcons
-                name="send"
-                size={20}
-                color={Colors.background}
-              />
-              <Text style={styles.submitButtonText}>Submit Complaint</Text>
-            </>
-          )}
-        </TouchableOpacity>
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>What is the issue?</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. Broken streetlight, overflowing drain, or road pothole..."
+              placeholderTextColor={Colors.textTertiary}
+              multiline
+              numberOfLines={4}
+              value={description}
+              onChangeText={setDescription}
+              textAlignVertical="top"
+              editable={!loading}
+            />
+          </View>
 
-        {/* Footer Link */}
-        <TouchableOpacity>
-          <Text style={styles.footerLink}>Need help? Check our FAQ</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          <View style={[styles.card, styles.locationCard]}>
+            <View style={styles.locationHeader}>
+              <View style={styles.locationTitleRow}>
+                <MaterialCommunityIcons name="map-marker-radius" size={20} color={Colors.primary} />
+                <Text style={styles.sectionLabel}>Incident Location</Text>
+              </View>
+              {locating ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <TouchableOpacity onPress={fetchLocation}>
+                  <Text style={styles.refreshLoc}>Update Location</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            <View style={styles.locationStatus}>
+              {location ? (
+                <View style={styles.locationSuccess}>
+                  <MaterialCommunityIcons name="check-decagram" size={16} color={Colors.success} />
+                  <Text style={styles.locationText}>Verified: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</Text>
+                </View>
+              ) : (
+                <Text style={styles.locationPending}>No location selected</Text>
+              )}
+            </View>
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.submitBtn, (!description || loading) && styles.submitBtnDisabled]}
+            onPress={handleSubmit}
+            disabled={loading || !description}
+          >
+            <LinearGradient
+              colors={[Colors.primary, Colors.darkBlue]}
+              style={styles.submitGradient}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}
+            >
+              {loading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <>
+                  <Text style={styles.submitBtnText}>Submit Report</Text>
+                  <MaterialCommunityIcons name="send" size={20} color="white" />
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+          
+          <Text style={styles.privacyNote}>
+            Your report will be processed by AI and routed to the corresponding department. 
+            Estimated resolution time: 48-72 hours.
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
-}
-
-function FormSection({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={styles.formSection}>
-      <Text style={styles.sectionLabel}>{label}</Text>
-      {children}
-    </View>
-  );
-}
-
-function AttachmentItem({
-  name,
-  onRemove,
-}: {
-  name: string;
-  onRemove: () => void;
-}) {
-  return (
-    <View style={styles.attachmentItem}>
-      <View style={styles.attachmentInfo}>
-        <MaterialCommunityIcons
-          name="file-image-outline"
-          size={20}
-          color={Colors.primary}
-        />
-        <Text style={styles.attachmentName}>{name}</Text>
-      </View>
-      <TouchableOpacity onPress={onRemove}>
-        <MaterialCommunityIcons name="close" size={20} color={Colors.error} />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function getPriorityColor(priority: PriorityLevel): string {
-  switch (priority) {
-    case "high":
-      return Colors.error;
-    case "normal":
-      return Colors.warning;
-    case "low":
-      return Colors.primary;
-    default:
-      return Colors.textSecondary;
-  }
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
+  container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: "#F8FAFC",
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+  topBar: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: Spacing.xl,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  backBtn: {
+    padding: 4,
   },
   headerTitle: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: "700",
-    color: Colors.text,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '800',
+    color: 'white',
   },
-
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
+  scroll: {
+    padding: Spacing.xl,
+    paddingBottom: 40,
   },
-
-  formSection: {
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 24,
+    padding: 20,
     marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 2,
   },
   sectionLabel: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: "600",
-    color: Colors.text,
-    marginBottom: Spacing.md,
-    textTransform: "uppercase",
-  },
-
-  textInput: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    fontSize: Typography.fontSize.base,
-    color: Colors.text,
-  },
-  textareaInput: {
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
-    minHeight: 100,
-    textAlignVertical: "top",
-  },
-  charCount: {
-    fontSize: Typography.fontSize.xs,
+    fontSize: 12,
+    fontWeight: '800',
     color: Colors.textSecondary,
-    marginTop: Spacing.sm,
-    textAlign: "right",
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 16,
   },
-
-  selectButton: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-  },
-  selectButtonText: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: "600",
-    color: Colors.text,
-  },
-
-  pickerOptions: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.lg,
-    marginTop: Spacing.sm,
-    overflow: "hidden",
-  },
-  pickerOption: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  pickerOptionActive: {
-    backgroundColor: Colors.primary + "10",
-  },
-  pickerOptionText: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: "500",
-    color: Colors.text,
-  },
-  pickerOptionTextActive: {
-    fontWeight: "700",
-    color: Colors.primary,
-  },
-
-  priorityDisplay: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  priorityDot: {
-    width: 10,
-    height: 10,
-    borderRadius: BorderRadius.full,
-  },
-  priorityOptionContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    flex: 1,
-  },
-
-  locationInputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  locationButton: {
-    width: 44,
-    height: 44,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.lg,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  attachmentsList: {
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  attachmentItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: Colors.surface,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  attachmentInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    flex: 1,
-  },
-  attachmentName: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: "500",
-    color: Colors.text,
-  },
-
-  addAttachmentButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.md,
-    paddingVertical: Spacing.md,
+  captureBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
     borderWidth: 2,
-    borderStyle: "dashed",
-    borderColor: Colors.primary,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.md,
+    borderColor: Colors.primary + '20',
+    borderStyle: 'dashed',
+    borderRadius: 20,
   },
-  addAttachmentText: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: "600",
+  captureIconOuter: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: Colors.primary + '10',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  captureText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: Colors.primary,
   },
-  helperText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.textSecondary,
+  captureSub: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    marginTop: 4,
   },
-
-  voiceCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.surface,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
+  photoPreviewWrapper: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    height: 240,
+    width: '100%',
   },
-  voiceInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    flex: 1,
+  photoPreview: {
+    width: '100%',
+    height: '100%',
   },
-  voiceText: {
+  removePhoto: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'white',
+    borderRadius: 12,
+  },
+  input: {
+    backgroundColor: '#F7F9FC',
+    borderRadius: 16,
+    padding: 16,
     fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
+    color: Colors.text,
+    minHeight: 120,
   },
-  voiceButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.primary + "10",
+  locationCard: {
+    paddingBottom: 16,
   },
-  voiceButtonRecording: {
-    borderColor: Colors.error,
-    backgroundColor: Colors.error + "10",
+  locationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  voiceButtonText: {
-    fontSize: Typography.fontSize.xs,
-    fontWeight: "700",
+  locationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  refreshLoc: {
+    fontSize: 12,
+    fontWeight: '700',
     color: Colors.primary,
   },
-  voiceButtonTextRecording: {
-    color: Colors.error,
+  locationStatus: {
+    paddingVertical: 4,
   },
-
-  submitButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.md,
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.xl,
-    marginVertical: Spacing.xl,
+  locationSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  submitButtonDisabled: {
-    opacity: 0.5,
+  locationText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.text,
   },
-  submitButtonText: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: "700",
-    color: Colors.background,
+  locationPending: {
+    fontSize: 13,
+    color: Colors.textTertiary,
+    fontStyle: 'italic',
   },
-
-  footerLink: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.primary,
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: Spacing.xl,
+  submitBtn: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginTop: Spacing.md,
+    elevation: 8,
+  },
+  submitBtnDisabled: {
+    opacity: 0.6,
+  },
+  submitGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    gap: 12,
+  },
+  submitBtnText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: 'white',
+  },
+  privacyNote: {
+    textAlign: 'center',
+    fontSize: 11,
+    color: Colors.textTertiary,
+    lineHeight: 16,
+    marginTop: 20,
+    paddingHorizontal: 20,
   },
 });

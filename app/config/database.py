@@ -62,6 +62,14 @@ def get_notifications_collection():
     return get_database()["notifications"]
 
 
+def get_departments_collection():
+    return get_database()["departments"]
+
+
+def get_settings_collection():
+    return get_database()["settings"]
+
+
 # ---------------------------------------------------------------------------
 # Index definitions
 # ---------------------------------------------------------------------------
@@ -95,4 +103,11 @@ async def _create_indexes() -> None:
     await db["notifications"].create_index("read")
     await db["notifications"].create_index([("userId", 1), ("createdAt", -1)])
 
+    # departments
+    await db["departments"].create_index("name", unique=True)
+
+    # settings
+    await db["settings"].create_index("key", unique=True)
+
     logger.info("✅  MongoDB indexes verified")
+

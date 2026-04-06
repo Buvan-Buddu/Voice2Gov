@@ -21,6 +21,8 @@ import DashboardScreen from "../screens/DashboardScreen";
 import MyComplaintsScreen from "../screens/MyComplaintsScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import PublicFeedScreen from "../screens/PublicFeedScreen";
+import AuthorityDashboardScreen from "../screens/AuthorityDashboardScreen";
+import ResolveComplaintScreen from "../screens/ResolveComplaintScreen";
 
 export type RootStackParamList = {
   OnboardingScreen: undefined;
@@ -32,6 +34,8 @@ export type RootStackParamList = {
   DashboardScreen: undefined;
   ComplaintDetailsScreen: { complaint?: any } | undefined;
   CreateComplaintScreen: undefined;
+  AuthorityDashboardScreen: undefined;
+  ResolveComplaintScreen: { complaint: any };
 };
 
 export type MainScreensTabParamList = {
@@ -171,10 +175,15 @@ export default function AppNavigator() {
           options={{ headerShown: false }}
         />
 
+        <RootStack.Screen
+          name="AuthorityDashboardScreen"
+          component={AuthorityDashboardScreen}
+          options={{ headerShown: false }}
+        />
+
         <RootStack.Group
           screenOptions={{
             presentation: "modal",
-            animationEnabled: true,
           }}
         >
           <RootStack.Screen
@@ -186,6 +195,11 @@ export default function AppNavigator() {
             name="CreateComplaintScreen"
             component={CreateComplaintScreen}
             options={{ title: "File a Complaint" }}
+          />
+          <RootStack.Screen
+            name="ResolveComplaintScreen"
+            component={ResolveComplaintScreen}
+            options={{ title: "Resolve Issue" }}
           />
         </RootStack.Group>
       </RootStack.Navigator>
