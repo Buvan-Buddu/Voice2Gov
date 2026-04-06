@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -17,16 +17,35 @@ import {
 } from "react-native";
 
 import { BorderRadius, Colors, Spacing, Typography } from "../constants/theme";
-import { complaintService } from "../services/api";
-import { ComplaintResponse } from "../types/srs";
+import { complaintService, API_BASE_URL } from "../services/api";
+import { ComplaintResponse, Comment } from "../types/srs";
 
 export default function ResolveComplaintScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const complaint: ComplaintResponse = route.params?.complaint;
-
+  
+  const [complaint, setComplaint] = useState<ComplaintResponse>(route.params?.complaint);
   const [notes, setNotes] = useState("");
+  const [commentText, setCommentText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [submittingComment, setSubmittingComment] = useState(false);
+
+  useEffect(() => {
+    fetchLatestDetails();
+  }, []);
+
+  const fetchLatestDetails = async () => {
+    if (!complaint?.id) return;
+    try {
+      const data = await complaintService.getComplaint(complaint.id);
+      setComplaint(data);
+    } catch (error) {
+      console.warn("Failed to fetch fresh complaint details", error);
+    } finally {
+      setFetching(false);
+    }
+  };
 
   if (!complaint) {
       return (
@@ -64,6 +83,20 @@ export default function ResolveComplaintScreen() {
     }
   };
 
+  const handlePostComment = async () => {
+    if (!commentText.trim()) return;
+    setSubmittingComment(true);
+    try {
+        await complaintService.addComment(complaint.id, commentText);
+        setCommentText("");
+        await fetchLatestDetails();
+    } catch (error: any) {
+        Alert.alert("Comment Failed", error.message || "Could not post response.");
+    } finally {
+        setSubmittingComment(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -84,68 +117,132 @@ export default function ResolveComplaintScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {/* Complaint Summary */}
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryHeader}>
-                <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryText}>{complaint.category}</Text>
+          {fetching ? (
+              <ActivityIndicator color={Colors.primary} style={{ margin: 40 }} />
+          ) : (
+            <>
+              {/* Complaint Summary */}
+              <View style={styles.summaryCard}>
+                <View style={styles.summaryHeader}>
+                    <View style={styles.categoryBadge}>
+                        <Text style={styles.categoryText}>{complaint.category}</Text>
+                    </View>
+                    <Text style={styles.idText}>ID: #{complaint.id.slice(-6).toUpperCase()}</Text>
                 </View>
-                <Text style={styles.idText}>ID: #{complaint.id.slice(-6).toUpperCase()}</Text>
-            </View>
-            <Text style={styles.description}>{complaint.description}</Text>
-            {complaint.image && (
-                <Image source={{ uri: complaint.image }} style={styles.evidenceImage} />
-            )}
-          </View>
+                <Text style={styles.description}>{complaint.description}</Text>
+                {(complaint.image || (complaint as any).imageUrl) && (
+                    <Image 
+                        source={{ 
+                            uri: (complaint.image || (complaint as any).imageUrl).startsWith('http') 
+                                ? (complaint.image || (complaint as any).imageUrl)
+                                : (complaint.image || (complaint as any).imageUrl).startsWith('data:')
+                                    ? (complaint.image || (complaint as any).imageUrl)
+                                    : `${API_BASE_URL}${(complaint.image || (complaint as any).imageUrl)}`
+                        }} 
+                        style={styles.evidenceImage} 
+                    />
+                )}
+              </View>
 
-          {/* Action Section */}
-          <View style={styles.actionCard}>
-            <Text style={styles.sectionLabel}>Resolution Feedback</Text>
-            <Text style={styles.sectionSub}>This message will be visible to the citizen.</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Provide details on the action taken, estimated time, or resolution evidence..."
-              placeholderTextColor={Colors.textTertiary}
-              multiline
-              numberOfLines={6}
-              value={notes}
-              onChangeText={setNotes}
-              textAlignVertical="top"
-              editable={!loading}
-            />
-          </View>
+              {/* Discussion Thread */}
+              <View style={styles.section}>
+                  <View style={styles.sectionHeaderRow}>
+                      <Text style={styles.sectionLabel}>Citizen Discussion</Text>
+                      <TouchableOpacity onPress={fetchLatestDetails}>
+                        <MaterialCommunityIcons name="refresh" size={16} color={Colors.primary} />
+                      </TouchableOpacity>
+                  </View>
+                  <Text style={styles.sectionSub}>Communication with residents regarding this issue.</Text>
+                  
+                  <View style={styles.commentsList}>
+                      {complaint.comments && complaint.comments.length > 0 ? (
+                          complaint.comments.map((c, index) => (
+                              <View key={index} style={styles.commentItem}>
+                                  <View style={styles.commentHeader}>
+                                      <Text style={styles.commentUser}>{c.userName}</Text>
+                                      <Text style={styles.commentDate}>{new Date(c.createdAt).toLocaleDateString()}</Text>
+                                  </View>
+                                  <Text style={styles.commentText}>{c.text}</Text>
+                              </View>
+                          ))
+                      ) : (
+                          <Text style={styles.noComments}>No citizen messages yet.</Text>
+                      )}
+                  </View>
 
-          <View style={styles.btnRow}>
-            {complaint.status === 'pending' && (
+                  <View style={styles.replyBox}>
+                      <TextInput 
+                          style={styles.replyInput}
+                          placeholder="Reply to residents..."
+                          placeholderTextColor={Colors.textTertiary}
+                          value={commentText}
+                          onChangeText={setCommentText}
+                          multiline
+                      />
+                      <TouchableOpacity 
+                          style={[styles.replyBtn, !commentText.trim() && { opacity: 0.5 }]} 
+                          onPress={handlePostComment}
+                          disabled={submittingComment || !commentText.trim()}
+                      >
+                          {submittingComment ? (
+                              <ActivityIndicator color="white" size="small" />
+                          ) : (
+                              <MaterialCommunityIcons name="send" size={20} color="white" />
+                          )}
+                      </TouchableOpacity>
+                  </View>
+              </View>
+
+              {/* Action Section */}
+              <View style={styles.actionCard}>
+                <Text style={styles.sectionLabel}>Official Resolution Feedback</Text>
+                <Text style={styles.sectionSub}>This will formalize the status and notify the citizen.</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Provide final resolution report..."
+                  placeholderTextColor={Colors.textTertiary}
+                  multiline
+                  numberOfLines={6}
+                  value={notes}
+                  onChangeText={setNotes}
+                  textAlignVertical="top"
+                  editable={!loading}
+                />
+              </View>
+
+              <View style={styles.btnRow}>
+                {complaint.status === 'pending' && (
+                    <TouchableOpacity 
+                        style={[styles.actionBtn, styles.progressBtn]} 
+                        onPress={() => handleUpdate('in_progress')}
+                        disabled={loading}
+                    >
+                        <MaterialCommunityIcons name="clock-fast" size={20} color="white" />
+                        <Text style={styles.btnText}>Start Work</Text>
+                    </TouchableOpacity>
+                )}
+
                 <TouchableOpacity 
-                    style={[styles.actionBtn, styles.progressBtn]} 
-                    onPress={() => handleUpdate('in_progress')}
+                    style={[styles.actionBtn, styles.resolveBtn, (!notes && complaint.status !== 'resolved') && styles.disabledBtn]} 
+                    onPress={() => handleUpdate('resolved')}
                     disabled={loading}
                 >
-                    <MaterialCommunityIcons name="clock-fast" size={20} color="white" />
-                    <Text style={styles.btnText}>Start Work</Text>
+                    {loading ? (
+                        <ActivityIndicator color="white" />
+                    ) : (
+                        <>
+                            <MaterialCommunityIcons name="check-decagram" size={20} color="white" />
+                            <Text style={styles.btnText}>{complaint.status === 'resolved' ? 'Archived' : 'Resolve'}</Text>
+                        </>
+                    )}
                 </TouchableOpacity>
-            )}
+              </View>
 
-            <TouchableOpacity 
-                style={[styles.actionBtn, styles.resolveBtn, (!notes && complaint.status !== 'resolved') && styles.disabledBtn]} 
-                onPress={() => handleUpdate('resolved')}
-                disabled={loading}
-            >
-                {loading ? (
-                    <ActivityIndicator color="white" />
-                ) : (
-                    <>
-                        <MaterialCommunityIcons name="check-decagram" size={20} color="white" />
-                        <Text style={styles.btnText}>Resolve Issue</Text>
-                    </>
-                )}
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.footerNote}>
-            Status changes are logged and audited. Ensure all provided information is accurate.
-          </Text>
+              <Text style={styles.footerNote}>
+                Status changes are logged and audited. Ensure all provided information is accurate.
+              </Text>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -230,6 +327,76 @@ const styles = StyleSheet.create({
       borderRadius: 16,
       backgroundColor: '#F1F5F9',
   },
+  section: {
+      marginBottom: 24,
+      paddingHorizontal: 4,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  commentsList: {
+      backgroundColor: '#F1F5F9',
+      borderRadius: 20,
+      padding: 16,
+      marginBottom: 12,
+  },
+  commentItem: {
+      marginBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E2E8F0',
+      paddingBottom: 8,
+  },
+  commentHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 4,
+  },
+  commentUser: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: Colors.darkBlue,
+  },
+  commentDate: {
+      fontSize: 10,
+      color: Colors.gray500,
+  },
+  commentText: {
+      fontSize: 13,
+      color: Colors.text,
+      lineHeight: 18,
+  },
+  noComments: {
+      fontSize: 12,
+      color: Colors.textTertiary,
+      textAlign: 'center',
+      fontStyle: 'italic',
+  },
+  replyBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+  },
+  replyInput: {
+      flex: 1,
+      backgroundColor: 'white',
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      fontSize: 14,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      maxHeight: 100,
+  },
+  replyBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      backgroundColor: Colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+  },
   actionCard: {
       backgroundColor: 'white',
       borderRadius: 24,
@@ -257,7 +424,7 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 14,
     color: Colors.text,
-    minHeight: 140,
+    minHeight: 100,
     borderWidth: 1,
     borderColor: '#EDF2F7',
   },

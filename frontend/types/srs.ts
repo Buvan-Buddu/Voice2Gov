@@ -13,6 +13,8 @@ export type Comment = {
 export type ComplaintRequest = {
   description: string;
   image: string;
+  imageUrl?: string;
+  audio?: string;
   location: GeoLocation;
   category: string;
   department: string;
@@ -22,6 +24,7 @@ export type ComplaintRequest = {
 export type ComplaintResponse = ComplaintRequest & {
   id: string;
   adminNotes?: string;
+  priority?: string;
   votes: number;
   comments: Comment[];
   createdAt: string;
