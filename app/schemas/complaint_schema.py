@@ -14,6 +14,13 @@ class LocationSchema(BaseModel):
     lng: float = Field(..., ge=-180, le=180,  examples=[80.2707])
 
 
+class CommentSchema(BaseModel):
+    userId: str
+    userName: Optional[str] = "Anonymous"
+    text: str = Field(..., min_length=1, max_length=500)
+    createdAt: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Request schemas
 # ---------------------------------------------------------------------------
@@ -58,6 +65,8 @@ class ComplaintResponseSchema(BaseModel):
     status: ComplaintStatus
     priority: ComplaintPriority
     votes: int
+    comments: list[CommentSchema] = []
+    assignedTo: Optional[str] = None
     assignedTo: Optional[str] = None
     adminNotes: Optional[str] = None
     createdAt: Optional[str]  = None

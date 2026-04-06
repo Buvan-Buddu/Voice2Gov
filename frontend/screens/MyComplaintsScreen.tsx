@@ -24,7 +24,7 @@ interface Complaint extends ComplaintResponse {
 
 type FilterType = "all" | "pending" | "resolved" | "in_progress";
 
-import { complaintService } from "../services/api";
+import { complaintService, API_BASE_URL } from "../services/api";
 
 export default function MyComplaintsScreen() {
   const navigation = useNavigation<any>();
@@ -239,7 +239,23 @@ function ComplaintCard({
         </View>
         <Text style={styles.issueId}>{complaint.issueId}</Text>
       </View>
-      <Text style={styles.complaintTitle}>{complaint.title}</Text>
+      <Text style={styles.complaintTitle}>{complaint.description}</Text>
+
+      {/* Image Preview */}
+      {(complaint.image || (complaint as any).imageUrl) && (
+        <View style={styles.imagePreviewWrapper}>
+          <Image 
+            source={{ 
+              uri: (complaint.image || (complaint as any).imageUrl).startsWith('http') 
+                ? (complaint.image || (complaint as any).imageUrl)
+                : (complaint.image || (complaint as any).imageUrl).startsWith('data:')
+                  ? (complaint.image || (complaint as any).imageUrl)
+                  : `${API_BASE_URL}${(complaint.image || (complaint as any).imageUrl)}`
+            }} 
+            style={styles.imagePreview} 
+          />
+        </View>
+      )}
       <View style={styles.complaintFooter}>
         <View style={styles.complaintMeta}>
           <MaterialCommunityIcons
@@ -456,5 +472,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     elevation: 8,
+  },
+  imagePreviewWrapper: {
+    height: 150,
+    width: '100%',
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    marginVertical: Spacing.md,
+    backgroundColor: '#F1F5F9',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
   },
 });

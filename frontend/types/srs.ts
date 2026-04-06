@@ -3,6 +3,13 @@ export type GeoLocation = {
   lng: number | null;
 };
 
+export type Comment = {
+  userId: string;
+  userName: string;
+  text: string;
+  createdAt: string;
+};
+
 export type ComplaintRequest = {
   description: string;
   image: string;
@@ -15,14 +22,14 @@ export type ComplaintRequest = {
 export type ComplaintResponse = ComplaintRequest & {
   id: string;
   adminNotes?: string;
+  votes: number;
+  comments: Comment[];
+  createdAt: string;
 };
 
 export type ComplaintFeedResponse = ComplaintResponse & {
   title: string;
-  createdAt: string;
   impact: string;
-  votes: number;
-  comments: number;
 };
 
 export type NotificationResponse = {

@@ -38,6 +38,14 @@ class LocationModel(BaseModel):
     address: Optional[str] = None
 
 
+class CommentModel(BaseModel):
+    id: Optional[str]           = Field(default=None, alias="_id")
+    userId: str
+    userName: Optional[str]     = "Anonymous"
+    text: str
+    createdAt: datetime         = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class ComplaintModel(BaseModel):
     """Represents a Complaint document as stored in MongoDB."""
     id: Optional[str]           = Field(default=None, alias="_id")
@@ -57,6 +65,7 @@ class ComplaintModel(BaseModel):
     urgencyKeywords: list       = Field(default_factory=list)
     votes: int                  = 0
     voters: list                = Field(default_factory=list)
+    comments: list[CommentModel] = Field(default_factory=list)
     assignedTo: Optional[str]   = None                # authority userId
     resolvedAt: Optional[datetime] = None
     adminNotes: Optional[str]   = None
@@ -88,6 +97,7 @@ def complaint_helper(complaint: dict) -> dict:
         "isUrgent":         complaint.get("isUrgent", False),
         "urgencyKeywords":  complaint.get("urgencyKeywords", []),
         "votes":            complaint.get("votes", 0),
+        "comments":         complaint.get("comments", []),
         "assignedTo":       complaint.get("assignedTo"),
         "adminNotes":       complaint.get("adminNotes"),
         "resolvedAt":       complaint.get("resolvedAt"),

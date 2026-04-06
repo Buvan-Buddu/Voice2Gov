@@ -11,6 +11,7 @@ Complaint Routes – /api/v1/complaints
   GET    /geo/hotspots          – geo hotspots (see geo_routes)
 """
 from typing import Optional
+from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, Depends, Query, status, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
@@ -138,6 +139,13 @@ async def get_my_complaints(
     })
 
 
+@router.get("/city-status", summary="Get dynamic city health overview")
+async def city_health_overview():
+    """Returns dynamic status of city services (real-time)."""
+    status_data = await complaint_service.get_city_status()
+    return success_response(data=status_data)
+
+
 # ---------------------------------------------------------------------------
 # GET /api/v1/complaints/{id}  – single complaint detail
 # ---------------------------------------------------------------------------
@@ -163,12 +171,32 @@ async def vote_complaint(
     return success_response(data=result, message="Vote registered")
 
 
+class AddCommentPayload(BaseModel):
+    text: str = Field(..., min_length=1, max_length=500)
+
+
+@router.post("/{complaint_id}/comment", summary="Add a comment to a complaint")
+async def add_comment(
+    complaint_id: str,
+    payload: AddCommentPayload,
+    current_user: dict = Depends(get_current_user_payload),
+):
+    """Authenticated users can comment on any complaint."""
+    # current_user might not have "name" if it's not in the token. 
+    # Usually it's better to fetch user details or include name in token.
+    user_name = current_user.get("name") or current_user.get("email") or "Anonymous"
+    result = await complaint_service.add_comment(
+        complaint_id, current_user["sub"], user_name, payload.text
+    )
+    return success_response(data=result, message="Comment added")
+
+
 # ---------------------------------------------------------------------------
 # GET /api/v1/complaints  – admin/authority: all complaints with filters + sort
 # ---------------------------------------------------------------------------
 @router.get(
     "/",
-    summary="[Authority/Admin] List all complaints with filters, sorting, pagination",
+    summary="List all complaints (Community Feed)",
 )
 async def list_all_complaints(
     page: int       = Query(1,  ge=1),
@@ -178,9 +206,7 @@ async def list_all_complaints(
     department: str = Query(None),
     priority: str   = Query(None),
     sort: str       = Query("createdAt_desc", description="field_asc or field_desc"),
-    current_user: dict = Depends(
-        _require_role(UserRole.AUTHORITY, UserRole.ADMIN)
-    ),
+    current_user: dict = Depends(get_current_user_payload),
 ):
     filters: dict = {}
     if status_filter:
@@ -252,3 +278,5 @@ async def update_status(
         complaint_id, payload, actor_id=current_user["sub"]
     )
     return success_response(data=result, message="Status updated")
+
+

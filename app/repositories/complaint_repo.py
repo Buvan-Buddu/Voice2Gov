@@ -130,6 +130,26 @@ class ComplaintRepository:
         result = await get_complaints_collection().delete_one({"_id": oid})
         return result.deleted_count > 0
 
+    async def add_comment(
+        self, complaint_id: str, user_id: str, user_name: str, text: str
+    ) -> Optional[dict]:
+        """Atomically push a new comment to the comments list."""
+        oid = validate_object_id(complaint_id)
+        comment_obj = {
+            "userId": user_id,
+            "userName": user_name,
+            "text": text,
+            "createdAt": datetime.now(timezone.utc),
+        }
+        await get_complaints_collection().update_one(
+            {"_id": oid},
+            {
+                "$push": {"comments": comment_obj},
+                "$set": {"updatedAt": datetime.now(timezone.utc)},
+            },
+        )
+        return await get_complaints_collection().find_one({"_id": oid})
+
 
 # Singleton instance used by services
 complaint_repo = ComplaintRepository()

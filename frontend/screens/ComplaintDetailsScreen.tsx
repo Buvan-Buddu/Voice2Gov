@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import MapView, { Marker } from "react-native-maps";
 import {
     Alert,
@@ -12,17 +12,73 @@ import {
     Text,
     TouchableOpacity,
     View,
+    TextInput,
+    ActivityIndicator,
 } from "react-native";
 
 import { BorderRadius, Colors, Spacing, Typography } from "../constants/theme";
-import { ComplaintResponse } from "../types/srs";
+import { ComplaintResponse, Comment } from "../types/srs";
+import { complaintService, API_BASE_URL } from "../services/api";
 
 export default function ComplaintDetailsScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const complaint: ComplaintResponse = route.params?.complaint;
-
+  const [complaint, setComplaint] = useState<ComplaintResponse>(route.params?.complaint);
+  const [loading, setLoading] = useState(!complaint);
   const [liked, setLiked] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
+
+  const fetchComplaintDetails = async () => {
+    if (!complaint?.id) return;
+    try {
+      const data = await complaintService.getComplaint(complaint.id);
+      setComplaint(data);
+    } catch (error: any) {
+      console.error("[Details] Fetch error:", error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchComplaintDetails();
+    }, [complaint?.id])
+  );
+
+  const handleVote = async () => {
+    if (!complaint?.id) return;
+    try {
+      await complaintService.voteComplaint(complaint.id);
+      setLiked(true);
+      fetchComplaintDetails();
+    } catch (error: any) {
+      Alert.alert("Vote Failed", error.message);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!complaint?.id || !commentText.trim()) return;
+    setSubmittingComment(true);
+    try {
+      await complaintService.addComment(complaint.id, commentText);
+      setCommentText("");
+      fetchComplaintDetails();
+    } catch (error: any) {
+      Alert.alert("Comment Failed", error.message);
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   if (!complaint) {
       return (
@@ -49,8 +105,17 @@ export default function ComplaintDetailsScreen() {
     <View style={styles.wrapper}>
       {/* Visual Header */}
       <View style={styles.imageHeader}>
-        {complaint.image ? (
-            <Image source={{ uri: complaint.image }} style={styles.mainImage} />
+        { (complaint.image || (complaint as any).imageUrl) ? (
+            <Image 
+              source={{ 
+                uri: (complaint.image || (complaint as any).imageUrl).startsWith('http') 
+                  ? (complaint.image || (complaint as any).imageUrl)
+                  : (complaint.image || (complaint as any).imageUrl).startsWith('data:')
+                    ? (complaint.image || (complaint as any).imageUrl)
+                    : `${API_BASE_URL}${(complaint.image || (complaint as any).imageUrl)}`
+              }} 
+              style={styles.mainImage} 
+            />
         ) : (
             <LinearGradient colors={[Colors.primary, Colors.darkBlue]} style={styles.imagePlaceholder}>
                 <MaterialCommunityIcons name="image-off-outline" size={48} color="white" />
@@ -84,6 +149,13 @@ export default function ComplaintDetailsScreen() {
                 <Text style={styles.idLabel}>ID: #{String(complaint.id).slice(-6).toUpperCase()}</Text>
             </View>
             <Text style={styles.description}>{complaint.description}</Text>
+            <View style={styles.statsRow}>
+                <MaterialCommunityIcons name="thumb-up" size={14} color={Colors.textSecondary} />
+                <Text style={styles.statsText}>{complaint.votes} votes</Text>
+                <View style={styles.dot} />
+                <MaterialCommunityIcons name="comment" size={14} color={Colors.textSecondary} />
+                <Text style={styles.statsText}>{complaint.comments?.length || 0} comments</Text>
+            </View>
         </View>
 
         {/* Agency Info */}
@@ -153,7 +225,7 @@ export default function ComplaintDetailsScreen() {
                 active
                 title="Report Created"
                 desc="Your report was successfully filed and routed by AI."
-                date="Recorded"
+                date={new Date(complaint.createdAt).toLocaleDateString()}
             />
             <TimelineStep
                 active={complaint.status !== 'pending'}
@@ -180,18 +252,66 @@ export default function ComplaintDetailsScreen() {
           </View>
         </View>
 
+        {/* Community Discussion */}
+        <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Community Discussion</Text>
+            <View style={styles.commentContainer}>
+                {complaint.comments && complaint.comments.length > 0 ? (
+                    complaint.comments.map((comment: Comment, index: number) => (
+                        <View key={index} style={styles.commentItem}>
+                            <View style={styles.commentHeader}>
+                                <Text style={styles.commentUser}>{comment.userName}</Text>
+                                <Text style={styles.commentDate}>{new Date(comment.createdAt).toLocaleDateString()}</Text>
+                            </View>
+                            <Text style={styles.commentText}>{comment.text}</Text>
+                        </View>
+                    ))
+                ) : (
+                    <Text style={styles.noCommentsText}>No comments yet. Start the conversation!</Text>
+                )}
+            </View>
+
+            {/* Post Comment */}
+            <View style={styles.postCommentBox}>
+                <TextInput
+                    style={styles.commentInput}
+                    placeholder="Add a comment..."
+                    placeholderTextColor={Colors.textTertiary}
+                    value={commentText}
+                    onChangeText={setCommentText}
+                    multiline
+                />
+                <TouchableOpacity 
+                    style={[styles.commentSubmit, !commentText.trim() && { opacity: 0.5 }]} 
+                    onPress={handleAddComment}
+                    disabled={!commentText.trim() || submittingComment}
+                >
+                    {submittingComment ? (
+                        <ActivityIndicator size="small" color="white" />
+                    ) : (
+                        <MaterialCommunityIcons name="send" size={20} color="white" />
+                    )}
+                </TouchableOpacity>
+            </View>
+        </View>
+
         <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* Action Bar */}
       <View style={styles.actionBar}>
         <TouchableOpacity 
-            style={[styles.helpfulBtn, liked && styles.helpfulBtnActive]}
-            onPress={() => setLiked(!liked)}
+            style={[styles.helpfulBtn, (liked || (complaint as any).hasVoted) && styles.helpfulBtnActive]}
+            onPress={handleVote}
+            disabled={liked || (complaint as any).hasVoted}
         >
-            <MaterialCommunityIcons name={liked ? "thumb-up" : "thumb-up-outline"} size={22} color={liked ? "white" : Colors.primary} />
-            <Text style={[styles.helpfulBtnText, liked && { color: 'white' }]}>
-                {liked ? 'Voted Helpful' : 'Mark as Helpful'}
+            <MaterialCommunityIcons 
+              name={(liked || (complaint as any).hasVoted) ? "thumb-up" : "thumb-up-outline"} 
+              size={22} 
+              color={(liked || (complaint as any).hasVoted) ? "white" : Colors.primary} 
+            />
+            <Text style={[styles.helpfulBtnText, (liked || (complaint as any).hasVoted) && { color: 'white' }]}>
+                {(liked || (complaint as any).hasVoted) ? 'Voted' : 'Vote Helpful'}
             </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.shareBtn} onPress={() => Alert.alert("Share", "Link copied to clipboard!")}>
@@ -225,10 +345,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'white',
   },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'white',
+  },
   errorContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center'
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    marginTop: 20,
+    textAlign: 'center',
   },
   imageHeader: {
     height: 300,
@@ -315,6 +448,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.text,
     lineHeight: 26,
+    marginBottom: 16,
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  statsText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.textTertiary,
+    marginHorizontal: 4,
   },
 
   agencyCard: {
@@ -552,5 +703,68 @@ const styles = StyleSheet.create({
       color: Colors.text,
       lineHeight: 20,
       fontWeight: '600',
-  }
+  },
+  commentContainer: {
+    marginBottom: 20,
+  },
+  commentItem: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  commentUser: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.darkBlue,
+  },
+  commentDate: {
+    fontSize: 10,
+    color: Colors.textTertiary,
+    fontWeight: '600',
+  },
+  commentText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  noCommentsText: {
+    textAlign: 'center',
+    color: Colors.textTertiary,
+    fontSize: 13,
+    marginVertical: 20,
+    fontStyle: 'italic',
+  },
+  postCommentBox: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-end',
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingTop: 12,
+    fontSize: 14,
+    color: Colors.text,
+    maxHeight: 100,
+  },
+  commentSubmit: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+  },
 });

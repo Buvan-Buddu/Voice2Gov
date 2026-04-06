@@ -26,7 +26,7 @@ try {
   console.warn('[Networking] Failed to probe network context:', e);
 }
 
-const API_BASE_URL = `http://${machineIP}:8000`; 
+export const API_BASE_URL = `http://${machineIP}:8000`; 
 const API_VERSION = '/api/v1';
 
 
@@ -202,6 +202,31 @@ export const complaintService = {
   async getAuthorityComplaints(department: string) {
     const response = await apiRequest(`/complaints/authority/complaints?department=${encodeURIComponent(department)}`);
     return response.data?.complaints || [];
+  },
+
+  async getFeed() {
+    const response = await apiRequest('/complaints');
+    return response.data?.complaints || [];
+  },
+
+  async voteComplaint(id: string) {
+    const response = await apiRequest(`/complaints/${id}/vote`, {
+      method: 'POST',
+    });
+    return response.data;
+  },
+
+  async addComment(id: string, text: string) {
+    const response = await apiRequest(`/complaints/${id}/comment`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+    return response.data;
+  },
+
+  async getCityStatus() {
+    const response = await apiRequest('/complaints/city-status');
+    return response.data;
   }
 };
 

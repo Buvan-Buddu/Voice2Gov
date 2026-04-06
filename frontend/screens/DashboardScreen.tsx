@@ -4,16 +4,17 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
-    FlatList,
+    ScrollView,
     RefreshControl,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
+    Image,
 } from "react-native";
 
 import { BorderRadius, Colors, Spacing, Typography } from "../constants/theme";
-import { authService, complaintService } from "../services/api";
+import { authService, complaintService, API_BASE_URL } from "../services/api";
 import { ComplaintResponse } from "../types/srs";
 
 export default function DashboardScreen() {
@@ -25,9 +26,6 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     loadData();
-    // POLLING: Refresh user reports every 10 seconds to show "Live updates" without complex networking
-    const interval = setInterval(loadData, 10000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -38,7 +36,7 @@ export default function DashboardScreen() {
       const data = await complaintService.getUserComplaints();
       setComplaints(data);
     } catch (error) {
-      console.warn("My Reports Load Failed", error);
+      console.warn("Dashboard Load Failed", error);
     } finally {
       setLoading(false);
     }
@@ -56,138 +54,156 @@ export default function DashboardScreen() {
     active: complaints.filter(c => c.status !== 'resolved').length,
   };
 
+  const recentComplaints = complaints.slice(0, 3);
+
+  if (loading && !refreshing) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      {/* PERSONAL IMPACT HEADER */}
-      <View style={styles.impactHeader}>
-        <LinearGradient
-            colors={[Colors.primary, Colors.darkBlue]}
-            style={styles.headerGradient}
-        >
-            <View style={styles.userRow}>
+    <ScrollView 
+        style={styles.container}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        showsVerticalScrollIndicator={false}
+    >
+      {/* 🚀 PREMIUM HEADER */}
+      <View style={styles.header}>
+        <LinearGradient colors={[Colors.primary, Colors.darkBlue]} style={styles.headerGradient}>
+            <View style={styles.topRow}>
                 <View>
-                    <Text style={styles.welcomeText}>Welcome back,</Text>
-                    <Text style={styles.userName}>{user?.name || "Citizen"}</Text>
+                    <Text style={styles.welcomeText}>GOOD MORNING,</Text>
+                    <Text style={styles.userName}>{user?.name?.split(' ')[0] || "Citizen"}</Text>
                 </View>
-                <View style={styles.voiceBadge}>
-                    <MaterialCommunityIcons name="microphone-variant" size={20} color="white" />
-                    <Text style={styles.voiceText}>ACTIVE VOICE</Text>
-                </View>
+                <TouchableOpacity style={styles.avatarBtn}>
+                    <Image 
+                        source={{ uri: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100" }} 
+                        style={styles.avatar} 
+                    />
+                </TouchableOpacity>
             </View>
 
-            <View style={styles.cardRow}>
-                <ImpactCard 
-                    icon="trending-up" 
-                    value={stats.resolved} 
-                    label="Issues Solved" 
-                    color="#4ADE80" 
-                />
-                <ImpactCard 
-                    icon="clock-check-outline" 
-                    value={stats.active} 
-                    label="Pending Action" 
-                    color="#FBBF24" 
-                />
+            <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{stats.total}</Text>
+                    <Text style={styles.statLabel}>Filed</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{stats.resolved}</Text>
+                    <Text style={styles.statLabel}>Solves</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                    <View style={styles.impactBadge}>
+                        <Text style={styles.impactText}>+12%</Text>
+                    </View>
+                    <Text style={styles.statLabel}>Impact</Text>
+                </View>
             </View>
         </LinearGradient>
       </View>
 
-      {/* QUICK ACTIONS */}
-      <View style={styles.quickActions}>
-          <TouchableOpacity 
-              style={styles.mainAction} 
-              onPress={() => navigation.navigate("CreateComplaintScreen")}
-          >
-              <LinearGradient
-                  colors={['#EC4899', '#D946EF']}
-                  style={styles.actionGradient}
-              >
-                  <MaterialCommunityIcons name="plus-circle" size={32} color="white" />
-                  <Text style={styles.actionText}>Raise New Concern</Text>
-              </LinearGradient>
-          </TouchableOpacity>
-      </View>
-
-      <Text style={styles.sectionTitle}>My Grievance Pipeline</Text>
-
-      {loading && !refreshing ? (
-          <View style={styles.center}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-          </View>
-      ) : (
-        <FlatList
-          data={complaints}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-          renderItem={({ item }) => (
-            <ReportCard 
-                item={item} 
-                onPress={() => navigation.navigate("ComplaintDetailsScreen", { complaint: item })} 
-            />
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <MaterialCommunityIcons name="text-box-plus-outline" size={64} color="#E2E8F0" />
-              <Text style={styles.emptyText}>You haven't voiced any concerns yet.</Text>
+      {/* 🛠 QUICK ACTIONS RADAR */}
+      <View style={styles.content}>
+        <View style={styles.radarSection}>
+            <Text style={styles.sectionTitle}>Radar Quick Actions</Text>
+            <View style={styles.radarGrid}>
+                <RadarBtn 
+                    icon="plus-box" 
+                    label="New Report" 
+                    color="#F43F5E" 
+                    onPress={() => navigation.navigate("CreateComplaintScreen")}
+                />
+                <RadarBtn 
+                    icon="rss" 
+                    label="Feed" 
+                    color="#8B5CF6" 
+                    onPress={() => navigation.navigate("FeedTab")}
+                />
+                <RadarBtn 
+                    icon="map-marker-radius" 
+                    label="Map" 
+                    color="#10B981" 
+                />
+                <RadarBtn 
+                    icon="bell-ring" 
+                    label="Alerts" 
+                    color="#F59E0B" 
+                    onPress={() => navigation.navigate("NotificationsTab")}
+                />
             </View>
-          }
-        />
-      )}
-    </View>
+        </View>
+
+        {/* 📝 RECENT TRACKERS */}
+        <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Your Recent Trackers</Text>
+                <TouchableOpacity onPress={() => navigation.navigate("ComplaintsTab")}>
+                    <Text style={styles.seeAll}>See All</Text>
+                </TouchableOpacity>
+            </View>
+            
+            {recentComplaints.length > 0 ? (
+                recentComplaints.map(item => (
+                    <MiniCard 
+                        key={item.id} 
+                        item={item} 
+                        onPress={() => navigation.navigate("ComplaintDetailsScreen", { complaint: item })} 
+                    />
+                ))
+            ) : (
+                <View style={styles.emptyRecent}>
+                    <MaterialCommunityIcons name="clipboard-text-outline" size={32} color={Colors.textTertiary} />
+                    <Text style={styles.emptyText}>No recent reports to show.</Text>
+                </View>
+            )}
+        </View>
+
+        {/* 🏆 COMMUNITY IMPACT */}
+        <LinearGradient colors={['#FDF2F8', '#FCE7F3']} style={styles.banner}>
+            <View style={styles.bannerInfo}>
+                <Text style={styles.bannerTitle}>Resolution Goal</Text>
+                <Text style={styles.bannerSub}>84% of neighborhood issues resolved this month. Keep up the voice!</Text>
+            </View>
+            <View style={styles.goalCircle}>
+                <Text style={styles.goalText}>84%</Text>
+            </View>
+        </LinearGradient>
+
+        <View style={{ height: 40 }} />
+      </View>
+    </ScrollView>
   );
 }
 
-function ImpactCard({ icon, value, label, color }: any) {
+function RadarBtn({ icon, label, color, onPress }: any) {
     return (
-        <View style={styles.impactCard}>
-            <View style={[styles.iconBox, { backgroundColor: color + '20' }]}>
-                <MaterialCommunityIcons name={icon} size={20} color={color} />
+        <TouchableOpacity style={styles.radarBtn} onPress={onPress}>
+            <View style={[styles.radarIconBox, { backgroundColor: color + '15' }]}>
+                <MaterialCommunityIcons name={icon} size={24} color={color} />
             </View>
-            <View>
-                <Text style={styles.impactValue}>{value}</Text>
-                <Text style={styles.impactLabel}>{label}</Text>
-            </View>
-        </View>
+            <Text style={styles.radarLabel}>{label}</Text>
+        </TouchableOpacity>
     );
 }
 
-function ReportCard({ item, onPress }: { item: ComplaintResponse, onPress: () => void }) {
-    const isResolved = item.status === 'resolved';
-    const isInProgress = item.status === 'in_progress';
-
+function MiniCard({ item, onPress }: { item: ComplaintResponse, onPress: () => void }) {
+    const statusColor = item.status === 'resolved' ? Colors.success : item.status === 'in_progress' ? Colors.info : Colors.warning;
     return (
-        <TouchableOpacity style={styles.reportCard} onPress={onPress}>
-            <View style={styles.reportTop}>
-                <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryText}>{item.category}</Text>
-                </View>
-                <View style={[
-                    styles.statusBadge, 
-                    isResolved && styles.statusResolved, 
-                    isInProgress && styles.statusActive
-                ]}>
-                    <Text style={[
-                        styles.statusText, 
-                        isResolved && { color: '#059669' },
-                        isInProgress && { color: '#2563EB' }
-                    ]}>
-                        {item.status.replace('_', ' ').toUpperCase()}
-                    </Text>
+        <TouchableOpacity style={styles.miniCard} onPress={onPress}>
+            <View style={[styles.miniStatus, { backgroundColor: statusColor }]} />
+            <View style={styles.miniContent}>
+                <Text style={styles.miniDesc} numberOfLines={1}>{item.description}</Text>
+                <View style={styles.miniFooter}>
+                    <Text style={styles.miniId}>#ID-{item.id.slice(-4).toUpperCase()}</Text>
+                    <Text style={styles.miniStatusText}>{item.status.replace('_', ' ').toUpperCase()}</Text>
                 </View>
             </View>
-
-            <Text style={styles.reportDesc} numberOfLines={2}>{item.description}</Text>
-            
-            <View style={styles.reportBottom}>
-                <View style={styles.timeInfo}>
-                    <MaterialCommunityIcons name="clock-outline" size={14} color={Colors.textTertiary} />
-                    <Text style={styles.timeText}>Updated recently</Text>
-                </View>
-                <TouchableOpacity style={styles.viewBtn} onPress={onPress}>
-                    <Text style={styles.viewBtnText}>TRACK PROGRESS</Text>
-                </TouchableOpacity>
-            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textTertiary} />
         </TouchableOpacity>
     );
 }
@@ -195,207 +211,294 @@ function ReportCard({ item, onPress }: { item: ComplaintResponse, onPress: () =>
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "white",
   },
-  impactHeader: {
-    paddingBottom: 20,
+  header: {
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    overflow: 'hidden',
   },
   headerGradient: {
-      paddingTop: 60,
-      paddingHorizontal: 20,
-      paddingBottom: 32,
-      borderBottomLeftRadius: 40,
-      borderBottomRightRadius: 40,
+    paddingTop: 60,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
   },
-  userRow: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 32,
   },
   welcomeText: {
-      fontSize: 14,
-      color: 'rgba(255,255,255,0.7)',
-      fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 2,
   },
   userName: {
-      fontSize: 24,
-      fontWeight: '900',
-      color: 'white',
-      letterSpacing: -0.5,
+    fontSize: 28,
+    fontWeight: '900',
+    color: 'white',
+    letterSpacing: -0.5,
   },
-  voiceBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: 'rgba(255,255,255,0.15)',
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 20,
-      gap: 6,
+  avatarBtn: {
+    width: 54,
+    height: 54,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.2)',
+    padding: 3,
   },
-  voiceText: {
-      fontSize: 10,
-      fontWeight: '800',
-      color: 'white',
-      letterSpacing: 0.5,
+  avatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
   },
-  cardRow: {
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 24,
+    padding: 20,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: 'white',
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.6)',
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  impactBadge: {
+    backgroundColor: '#4ADE80',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  impactText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: 'black',
+  },
+
+  content: {
+    paddingHorizontal: 24,
+    paddingTop: 32,
+  },
+  radarSection: {
+    marginBottom: 32,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.darkBlue,
+  },
+  radarGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  radarBtn: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  radarIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radarLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+
+  section: {
+    marginBottom: 32,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.error + '10',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.error,
+  },
+  liveLabel: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: Colors.error,
+  },
+  serviceCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  serviceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  serviceLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  serviceLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  statusIndicatorText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  seeAll: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  miniCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    gap: 12,
+  },
+  miniStatus: {
+    width: 4,
+    height: 30,
+    borderRadius: 2,
+  },
+  miniContent: {
+    flex: 1,
+  },
+  miniDesc: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  miniFooter: {
     flexDirection: 'row',
     gap: 12,
   },
-  impactCard: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: 'white',
-      padding: 16,
-      borderRadius: 24,
-      gap: 12,
-      elevation: 4,
+  miniId: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.textTertiary,
   },
-  impactValue: {
-      fontSize: 18,
-      fontWeight: '900',
-      color: '#1E293B',
+  miniStatusText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.primary,
   },
-  impactLabel: {
-      fontSize: 10,
-      fontWeight: '700',
-      color: '#64748B',
-  },
-  iconBox: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      justifyContent: 'center',
-      alignItems: 'center',
-  },
-  quickActions: {
-      paddingHorizontal: 20,
-      marginTop: -20,
-      marginBottom: 20,
-  },
-  mainAction: {
-      borderRadius: 24,
-      elevation: 8,
-      overflow: 'hidden',
-  },
-  actionGradient: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 18,
-      gap: 12,
-  },
-  actionText: {
-      fontSize: 16,
-      fontWeight: '900',
-      color: 'white',
-  },
-  sectionTitle: {
-      fontSize: 16,
-      fontWeight: '800',
-      color: '#1E293B',
-      marginHorizontal: 20,
-      marginBottom: 16,
-  },
-  listContent: {
-      paddingHorizontal: 20,
-      paddingBottom: 40,
-  },
-  reportCard: {
-      backgroundColor: 'white',
-      borderRadius: 24,
-      padding: 16,
-      marginBottom: 16,
-      borderWidth: 1,
-      borderColor: '#F1F5F9',
-  },
-  reportTop: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 12,
-  },
-  categoryBadge: {
-      backgroundColor: '#F1F5F9',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 8,
-  },
-  categoryText: {
-      fontSize: 10,
-      fontWeight: '800',
-      color: '#64748B',
-      textTransform: 'uppercase',
-  },
-  statusBadge: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 8,
-      backgroundColor: '#FEF3C7',
-  },
-  statusResolved: {
-      backgroundColor: '#D1FAE5',
-  },
-  statusActive: {
-      backgroundColor: '#DBEAFE',
-  },
-  statusText: {
-      fontSize: 10,
-      fontWeight: '800',
-      color: '#D97706',
-  },
-  reportDesc: {
-      fontSize: 15,
-      fontWeight: '600',
-      color: '#334155',
-      lineHeight: 22,
-      marginBottom: 16,
-  },
-  reportBottom: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      borderTopWidth: 1,
-      borderTopColor: '#F8FAFC',
-      paddingTop: 12,
-  },
-  timeInfo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-  },
-  timeText: {
-      fontSize: 11,
-      color: '#94A3B8',
-      fontWeight: '600',
-  },
-  viewBtn: {
-      backgroundColor: Colors.primary + '10',
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 8,
-  },
-  viewBtnText: {
-      fontSize: 10,
-      fontWeight: '800',
-      color: Colors.primary,
-  },
-  center: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-  },
-  emptyState: {
-      alignItems: 'center',
-      marginTop: 60,
+  emptyRecent: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
   },
   emptyText: {
-      marginTop: 16,
-      fontSize: 14,
-      color: '#94A3B8',
-      fontWeight: '600',
-      textAlign: 'center',
+    fontSize: 12,
+    color: Colors.textTertiary,
+    marginTop: 8,
+  },
+
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 24,
+    borderRadius: 30,
+    justifyContent: 'space-between',
+  },
+  bannerInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  bannerTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#9D174D',
+    marginBottom: 4,
+  },
+  bannerSub: {
+    fontSize: 11,
+    color: '#BE185D',
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+  goalCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 5,
+    borderColor: '#FBCFE8',
+  },
+  goalText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#9D174D',
+  },
+
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'white',
   }
 });
